@@ -21,7 +21,9 @@
   },
   "homepage": "https://github.com/CanzaApps/Baki-contracts#readme",
   "dependencies": {
+    "@openzeppelin/contracts": "^4.6.0",
     "@truffle/hdwallet-provider": "^2.0.8",
-    "dotenv": "^16.0.1"
+    "dotenv": "^16.0.1",
+    "truffle-plugin-verify": "^0.5.25"
   }
 }
