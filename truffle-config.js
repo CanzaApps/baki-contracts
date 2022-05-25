@@ -53,7 +53,10 @@ module.exports = {
       skipDryRun: true, // Skip dry run before migrations? (default: false for public nets )
     },
   },
-
+  plugins: [
+    'truffle-plugin-blockscout-verify'
+  ],
+ 
   // Set default mocha options here, use special reporters etc.
   mocha: {
     timeout: 100000,
