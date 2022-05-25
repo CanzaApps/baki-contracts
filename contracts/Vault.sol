@@ -8,28 +8,28 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Vault {
     IERC20 public immutable token;
-    uint public totalSupply;
+    uint256 public totalSupply;
     address public owner;
-    mapping(address => uint) public balanceOf;
-    event Transfer(address indexed from, address indexed to, uint value);
+    mapping(address => uint256) public balanceOf;
+    event Transfer(address indexed from, address indexed to, uint256 value);
 
    constructor(address _token) {
         owner = msg.sender;
         token = IERC20(_token);
     }
 
-    function _mint(address _to, uint _value) private {
+    function _mint(address _to, uint256 _value) private {
         totalSupply += _value;
         balanceOf[_to] += _value;
     }
     
-    function _burn(address _from, uint _value) private {
+    function _burn(address _from, uint256 _value) private {
         totalSupply -= _value;
         balanceOf[_from] -= _value;
     }
 
-    function deposit(uint _amount) external {
-        uint amountCUSD;
+    function deposit(uint256 _amount) external {
+        uint256 amountCUSD;
         _mint(msg.sender, amountCUSD);
         token.transferFrom(msg.sender, address(this), _amount);
     }
