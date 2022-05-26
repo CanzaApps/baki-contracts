@@ -40,23 +40,21 @@ module.exports = {
       timeoutBlocks: 200, // # of blocks before a deployment times out  (minimum/default: 50)
       skipDryRun: true, // Skip dry run before migrations? (default: false for public nets )
     },
-    mainnet: {
-      provider: () =>
-        new HDWalletProvider(
-          mnemonic,
-          `https://forno.celo.org`
-        ),
-      network_id: 42220, // Mainnet id
-      gas: 5500000, // Mainnet has a lower block limit than mainnet
-      confirmations: 2, // # of confs to wait between deployments. (default: 0)
-      timeoutBlocks: 200, // # of blocks before a deployment times out  (minimum/default: 50)
-      skipDryRun: true, // Skip dry run before migrations? (default: false for public nets )
-    },
+    // mainnet: {
+    //   provider: () =>
+    //     new HDWalletProvider(
+    //       mnemonic,
+    //       `https://forno.celo.org`
+    //     ),
+    //   network_id: 42220, // Mainnet id
+    //   gas: 5500000, // Mainnet has a lower block limit than mainnet
+    //   confirmations: 2, // # of confs to wait between deployments. (default: 0)
+    //   timeoutBlocks: 200, // # of blocks before a deployment times out  (minimum/default: 50)
+    //   skipDryRun: true, // Skip dry run before migrations? (default: false for public nets )
+    // },
   },
-  plugins: [
-    'truffle-plugin-blockscout-verify'
-  ],
- 
+  plugins: ["truffle-plugin-blockscout-verify"],
+
   // Set default mocha options here, use special reporters etc.
   mocha: {
     timeout: 100000,
