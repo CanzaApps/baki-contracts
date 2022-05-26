@@ -21,10 +21,12 @@ contract Vault is IVault, Ownable {
      */
     function mint(uint256 amountToMint) external payable override {
         require(amountToMint > 0, "Can't mint 0 or less tokens");
-        if (vaults[msg.sender].collateralAmount > 0) {
-            totalSupply += amountToMint;
-            token.transfer(msg.sender, amountToMint);
-        }
+        require(
+            vaults[msg.sender].collateralAmount > 0,
+            "You do not have any colateral, deposit to  mint"
+        );
+        totalSupply += amountToMint;
+        token.transfer(msg.sender, amountToMint);
     }
 
     /** 
@@ -32,6 +34,7 @@ contract Vault is IVault, Ownable {
     @param amountToDeposit  The amount of cUSD the user sent in the transaction
      */
     function deposit(uint256 amountToDeposit) external payable override {
+        require(amountToDeposit > 0, "Can't deposit 0 or less tokens");
         uint256 amountToMint = amountToDeposit; // => for now
         token.transferFrom(msg.sender, address(this), amountToDeposit);
         vaults[msg.sender].collateralAmount += amountToDeposit;
