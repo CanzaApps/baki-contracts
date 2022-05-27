@@ -120,28 +120,9 @@
       ],
       "stateMutability": "view",
       "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "depositAmount",
-          "type": "uint256"
-        }
-      ],
-      "name": "estimateTokenAmount",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "tokenAmount",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
     }
   ],
-  "metadata": "{\"compiler\":{\"version\":\"0.8.13+commit.abaa5c0e\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amountDeposited\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amountMinted\",\"type\":\"uint256\"}],\"name\":\"Deposit\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"}],\"name\":\"Transfer\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"amountToDeposit\",\"type\":\"uint256\"}],\"name\":\"deposit\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"repaymentAmount\",\"type\":\"uint256\"}],\"name\":\"estimateCollateralAmount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"collateralAmount\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"depositAmount\",\"type\":\"uint256\"}],\"name\":\"estimateTokenAmount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"tokenAmount\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"userAddress\",\"type\":\"address\"}],\"name\":\"getVault\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"collateralAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"debtAmount\",\"type\":\"uint256\"}],\"internalType\":\"struct IVault.Vault\",\"name\":\"vault\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"amountToMint\",\"type\":\"uint256\"}],\"name\":\"mint\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"project:/contracts/interfaces/IVault.sol\":\"IVault\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"project:/contracts/interfaces/IVault.sol\":{\"keccak256\":\"0xd3b3342921017a6ede59904918749bf02ebd3306956c626a91e19e5fb443243e\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://3e7e0168193326a420ca41c147636ef7bb456bc797b3a70af053d267190cfd89\",\"dweb:/ipfs/QmUPzVy9LWnnKch7pMGWXyu1cWe6fUx9V8Qb9afQXA6N2A\"]}},\"version\":1}",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.13+commit.abaa5c0e\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amountDeposited\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amountMinted\",\"type\":\"uint256\"}],\"name\":\"Deposit\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"}],\"name\":\"Transfer\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"amountToDeposit\",\"type\":\"uint256\"}],\"name\":\"deposit\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"repaymentAmount\",\"type\":\"uint256\"}],\"name\":\"estimateCollateralAmount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"collateralAmount\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"userAddress\",\"type\":\"address\"}],\"name\":\"getVault\",\"outputs\":[{\"components\":[{\"internalType\":\"uint256\",\"name\":\"collateralAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"debtAmount\",\"type\":\"uint256\"}],\"internalType\":\"struct IVault.Vault\",\"name\":\"vault\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"amountToMint\",\"type\":\"uint256\"}],\"name\":\"mint\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"project:/contracts/interfaces/IVault.sol\":\"IVault\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\"},\"optimizer\":{\"enabled\":false,\"runs\":200},\"remappings\":[]},\"sources\":{\"project:/contracts/interfaces/IVault.sol\":{\"keccak256\":\"0x73f1a9c6c009fa5c1241100cca3d5345983b5be3cd63191807fafa79c65ccaa6\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://e776132549596839e1d1ee8616326ec807caa74addd8c4c1547776b49d6a6e60\",\"dweb:/ipfs/QmRJ3BrUkhWDdHXTq9vMn8y2AWwsxU4ErBKpHHtDtAL18w\"]}},\"version\":1}",
   "bytecode": "0x",
   "deployedBytecode": "0x",
   "immutableReferences": {},
@@ -149,21 +130,21 @@
   "deployedGeneratedSources": [],
   "sourceMap": "",
   "deployedSourceMap": "",
-  "source": "// SPDX-License-Identifier: MIT\n\npragma solidity ^0.8.13;\n\ninterface IVault {\n    // #### Struct definitions\n    struct Vault {\n        uint256 collateralAmount; // The amount of collateral held by the vault contract\n        uint256 debtAmount; // The amount of stable coin that was minted against the collateral\n    }\n\n    // Event definition\n    event Transfer(address indexed from, address indexed to, uint256 value);\n    event Deposit(uint256 amountDeposited, uint256 amountMinted);\n\n    // #### Function definitions\n    function mint(uint256 amountToMint) external payable;\n\n    function deposit(uint256 amountToDeposit) external payable;\n\n    function getVault(address userAddress)\n        external\n        view\n        returns (Vault memory vault);\n\n    function estimateCollateralAmount(uint256 repaymentAmount)\n        external\n        view\n        returns (uint256 collateralAmount);\n\n    function estimateTokenAmount(uint256 depositAmount)\n        external\n        view\n        returns (uint256 tokenAmount);\n}\n",
-  "sourcePath": "/Users/apple/workplace/Canza/Baki/baki_contracts/contracts/interfaces/IVault.sol",
+  "source": "// SPDX-License-Identifier: MIT\r\n\r\npragma solidity ^0.8.13;\r\n\r\ninterface IVault {\r\n    // #### Struct definitions\r\n    struct Vault {\r\n        uint256 collateralAmount; // The amount of collateral held by the vault contract\r\n        uint256 debtAmount; // The amount of stable coin that was minted against the collateral\r\n    }\r\n\r\n    // Event definition\r\n    event Transfer(address indexed from, address indexed to, uint256 value);\r\n    event Deposit(uint256 amountDeposited, uint256 amountMinted);\r\n\r\n    // #### Function definitions\r\n    function mint(uint256 amountToMint) external payable;\r\n\r\n    function deposit(uint256 amountToDeposit) external payable;\r\n\r\n    function getVault(address userAddress)\r\n        external\r\n        view\r\n        returns (Vault memory vault);\r\n\r\n    function estimateCollateralAmount(uint256 repaymentAmount)\r\n        external\r\n        view\r\n        returns (uint256 collateralAmount);\r\n}\r\n",
+  "sourcePath": "C:\\Users\\natot\\OneDrive\\Desktop\\Baki-contracts\\contracts\\interfaces\\IVault.sol",
   "ast": {
     "absolutePath": "project:/contracts/interfaces/IVault.sol",
     "exportedSymbols": {
       "IVault": [
-        405
+        1168
       ]
     },
-    "id": 406,
+    "id": 1169,
     "license": "MIT",
     "nodeType": "SourceUnit",
     "nodes": [
       {
-        "id": 353,
+        "id": 1123,
         "literals": [
           "solidity",
           "^",
@@ -171,7 +152,7 @@
           ".13"
         ],
         "nodeType": "PragmaDirective",
-        "src": "33:24:4"
+        "src": "35:24:11"
       },
       {
         "abstract": false,
@@ -180,27 +161,27 @@
         "contractDependencies": [],
         "contractKind": "interface",
         "fullyImplemented": false,
-        "id": 405,
+        "id": 1168,
         "linearizedBaseContracts": [
-          405
+          1168
         ],
         "name": "IVault",
-        "nameLocation": "69:6:4",
+        "nameLocation": "73:6:11",
         "nodeType": "ContractDefinition",
         "nodes": [
           {
             "canonicalName": "IVault.Vault",
-            "id": 358,
+            "id": 1128,
             "members": [
               {
                 "constant": false,
-                "id": 355,
+                "id": 1125,
                 "mutability": "mutable",
                 "name": "collateralAmount",
-                "nameLocation": "144:16:4",
+                "nameLocation": "151:16:11",
                 "nodeType": "VariableDeclaration",
-                "scope": 358,
-                "src": "136:24:4",
+                "scope": 1128,
+                "src": "143:24:11",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -208,10 +189,10 @@
                   "typeString": "uint256"
                 },
                 "typeName": {
-                  "id": 354,
+                  "id": 1124,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "136:7:4",
+                  "src": "143:7:11",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -221,13 +202,13 @@
               },
               {
                 "constant": false,
-                "id": 357,
+                "id": 1127,
                 "mutability": "mutable",
                 "name": "debtAmount",
-                "nameLocation": "233:10:4",
+                "nameLocation": "241:10:11",
                 "nodeType": "VariableDeclaration",
-                "scope": 358,
-                "src": "225:18:4",
+                "scope": 1128,
+                "src": "233:18:11",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -235,10 +216,10 @@
                   "typeString": "uint256"
                 },
                 "typeName": {
-                  "id": 356,
+                  "id": 1126,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "225:7:4",
+                  "src": "233:7:11",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -248,33 +229,33 @@
               }
             ],
             "name": "Vault",
-            "nameLocation": "120:5:4",
+            "nameLocation": "126:5:11",
             "nodeType": "StructDefinition",
-            "scope": 405,
-            "src": "113:205:4",
+            "scope": 1168,
+            "src": "119:208:11",
             "visibility": "public"
           },
           {
             "anonymous": false,
             "eventSelector": "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-            "id": 366,
+            "id": 1136,
             "name": "Transfer",
-            "nameLocation": "354:8:4",
+            "nameLocation": "366:8:11",
             "nodeType": "EventDefinition",
             "parameters": {
-              "id": 365,
+              "id": 1135,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 360,
+                  "id": 1130,
                   "indexed": true,
                   "mutability": "mutable",
                   "name": "from",
-                  "nameLocation": "379:4:4",
+                  "nameLocation": "391:4:11",
                   "nodeType": "VariableDeclaration",
-                  "scope": 366,
-                  "src": "363:20:4",
+                  "scope": 1136,
+                  "src": "375:20:11",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -282,10 +263,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 359,
+                    "id": 1129,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "363:7:4",
+                    "src": "375:7:11",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -296,14 +277,14 @@
                 },
                 {
                   "constant": false,
-                  "id": 362,
+                  "id": 1132,
                   "indexed": true,
                   "mutability": "mutable",
                   "name": "to",
-                  "nameLocation": "401:2:4",
+                  "nameLocation": "413:2:11",
                   "nodeType": "VariableDeclaration",
-                  "scope": 366,
-                  "src": "385:18:4",
+                  "scope": 1136,
+                  "src": "397:18:11",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -311,10 +292,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 361,
+                    "id": 1131,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "385:7:4",
+                    "src": "397:7:11",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -325,14 +306,14 @@
                 },
                 {
                   "constant": false,
-                  "id": 364,
+                  "id": 1134,
                   "indexed": false,
                   "mutability": "mutable",
                   "name": "value",
-                  "nameLocation": "413:5:4",
+                  "nameLocation": "425:5:11",
                   "nodeType": "VariableDeclaration",
-                  "scope": 366,
-                  "src": "405:13:4",
+                  "scope": 1136,
+                  "src": "417:13:11",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -340,10 +321,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 363,
+                    "id": 1133,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "405:7:4",
+                    "src": "417:7:11",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -352,31 +333,31 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "362:57:4"
+              "src": "374:57:11"
             },
-            "src": "348:72:4"
+            "src": "360:72:11"
           },
           {
             "anonymous": false,
             "eventSelector": "a3af609bf46297028ce551832669030f9effef2b02606d02cbbcc40fe6b47c55",
-            "id": 372,
+            "id": 1142,
             "name": "Deposit",
-            "nameLocation": "431:7:4",
+            "nameLocation": "444:7:11",
             "nodeType": "EventDefinition",
             "parameters": {
-              "id": 371,
+              "id": 1141,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 368,
+                  "id": 1138,
                   "indexed": false,
                   "mutability": "mutable",
                   "name": "amountDeposited",
-                  "nameLocation": "447:15:4",
+                  "nameLocation": "460:15:11",
                   "nodeType": "VariableDeclaration",
-                  "scope": 372,
-                  "src": "439:23:4",
+                  "scope": 1142,
+                  "src": "452:23:11",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -384,10 +365,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 367,
+                    "id": 1137,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "439:7:4",
+                    "src": "452:7:11",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -397,14 +378,14 @@
                 },
                 {
                   "constant": false,
-                  "id": 370,
+                  "id": 1140,
                   "indexed": false,
                   "mutability": "mutable",
                   "name": "amountMinted",
-                  "nameLocation": "472:12:4",
+                  "nameLocation": "485:12:11",
                   "nodeType": "VariableDeclaration",
-                  "scope": 372,
-                  "src": "464:20:4",
+                  "scope": 1142,
+                  "src": "477:20:11",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -412,10 +393,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 369,
+                    "id": 1139,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "464:7:4",
+                    "src": "477:7:11",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -424,32 +405,32 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "438:47:4"
+              "src": "451:47:11"
             },
-            "src": "425:61:4"
+            "src": "438:61:11"
           },
           {
             "functionSelector": "a0712d68",
-            "id": 377,
+            "id": 1147,
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "mint",
-            "nameLocation": "534:4:4",
+            "nameLocation": "550:4:11",
             "nodeType": "FunctionDefinition",
             "parameters": {
-              "id": 375,
+              "id": 1145,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 374,
+                  "id": 1144,
                   "mutability": "mutable",
                   "name": "amountToMint",
-                  "nameLocation": "547:12:4",
+                  "nameLocation": "563:12:11",
                   "nodeType": "VariableDeclaration",
-                  "scope": 377,
-                  "src": "539:20:4",
+                  "scope": 1147,
+                  "src": "555:20:11",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -457,10 +438,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 373,
+                    "id": 1143,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "539:7:4",
+                    "src": "555:7:11",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -469,42 +450,42 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "538:22:4"
+              "src": "554:22:11"
             },
             "returnParameters": {
-              "id": 376,
+              "id": 1146,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "577:0:4"
+              "src": "593:0:11"
             },
-            "scope": 405,
-            "src": "525:53:4",
+            "scope": 1168,
+            "src": "541:53:11",
             "stateMutability": "payable",
             "virtual": false,
             "visibility": "external"
           },
           {
             "functionSelector": "b6b55f25",
-            "id": 382,
+            "id": 1152,
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "deposit",
-            "nameLocation": "593:7:4",
+            "nameLocation": "611:7:11",
             "nodeType": "FunctionDefinition",
             "parameters": {
-              "id": 380,
+              "id": 1150,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 379,
+                  "id": 1149,
                   "mutability": "mutable",
                   "name": "amountToDeposit",
-                  "nameLocation": "609:15:4",
+                  "nameLocation": "627:15:11",
                   "nodeType": "VariableDeclaration",
-                  "scope": 382,
-                  "src": "601:23:4",
+                  "scope": 1152,
+                  "src": "619:23:11",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -512,10 +493,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 378,
+                    "id": 1148,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "601:7:4",
+                    "src": "619:7:11",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -524,42 +505,42 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "600:25:4"
+              "src": "618:25:11"
             },
             "returnParameters": {
-              "id": 381,
+              "id": 1151,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "642:0:4"
+              "src": "660:0:11"
             },
-            "scope": 405,
-            "src": "584:59:4",
+            "scope": 1168,
+            "src": "602:59:11",
             "stateMutability": "payable",
             "virtual": false,
             "visibility": "external"
           },
           {
             "functionSelector": "0eb9af38",
-            "id": 390,
+            "id": 1160,
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "getVault",
-            "nameLocation": "658:8:4",
+            "nameLocation": "678:8:11",
             "nodeType": "FunctionDefinition",
             "parameters": {
-              "id": 385,
+              "id": 1155,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 384,
+                  "id": 1154,
                   "mutability": "mutable",
                   "name": "userAddress",
-                  "nameLocation": "675:11:4",
+                  "nameLocation": "695:11:11",
                   "nodeType": "VariableDeclaration",
-                  "scope": 390,
-                  "src": "667:19:4",
+                  "scope": 1160,
+                  "src": "687:19:11",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -567,10 +548,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 383,
+                    "id": 1153,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "667:7:4",
+                    "src": "687:7:11",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -580,77 +561,77 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "666:21:4"
+              "src": "686:21:11"
             },
             "returnParameters": {
-              "id": 389,
+              "id": 1159,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 388,
+                  "id": 1158,
                   "mutability": "mutable",
                   "name": "vault",
-                  "nameLocation": "748:5:4",
+                  "nameLocation": "771:5:11",
                   "nodeType": "VariableDeclaration",
-                  "scope": 390,
-                  "src": "735:18:4",
+                  "scope": 1160,
+                  "src": "758:18:11",
                   "stateVariable": false,
                   "storageLocation": "memory",
                   "typeDescriptions": {
-                    "typeIdentifier": "t_struct$_Vault_$358_memory_ptr",
+                    "typeIdentifier": "t_struct$_Vault_$1128_memory_ptr",
                     "typeString": "struct IVault.Vault"
                   },
                   "typeName": {
-                    "id": 387,
+                    "id": 1157,
                     "nodeType": "UserDefinedTypeName",
                     "pathNode": {
-                      "id": 386,
+                      "id": 1156,
                       "name": "Vault",
                       "nodeType": "IdentifierPath",
-                      "referencedDeclaration": 358,
-                      "src": "735:5:4"
+                      "referencedDeclaration": 1128,
+                      "src": "758:5:11"
                     },
-                    "referencedDeclaration": 358,
-                    "src": "735:5:4",
+                    "referencedDeclaration": 1128,
+                    "src": "758:5:11",
                     "typeDescriptions": {
-                      "typeIdentifier": "t_struct$_Vault_$358_storage_ptr",
+                      "typeIdentifier": "t_struct$_Vault_$1128_storage_ptr",
                       "typeString": "struct IVault.Vault"
                     }
                   },
                   "visibility": "internal"
                 }
               ],
-              "src": "734:20:4"
+              "src": "757:20:11"
             },
-            "scope": 405,
-            "src": "649:106:4",
+            "scope": 1168,
+            "src": "669:109:11",
             "stateMutability": "view",
             "virtual": false,
             "visibility": "external"
           },
           {
             "functionSelector": "56bfdaf5",
-            "id": 397,
+            "id": 1167,
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "estimateCollateralAmount",
-            "nameLocation": "770:24:4",
+            "nameLocation": "795:24:11",
             "nodeType": "FunctionDefinition",
             "parameters": {
-              "id": 393,
+              "id": 1163,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 392,
+                  "id": 1162,
                   "mutability": "mutable",
                   "name": "repaymentAmount",
-                  "nameLocation": "803:15:4",
+                  "nameLocation": "828:15:11",
                   "nodeType": "VariableDeclaration",
-                  "scope": 397,
-                  "src": "795:23:4",
+                  "scope": 1167,
+                  "src": "820:23:11",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -658,10 +639,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 391,
+                    "id": 1161,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "795:7:4",
+                    "src": "820:7:11",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -670,21 +651,21 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "794:25:4"
+              "src": "819:25:11"
             },
             "returnParameters": {
-              "id": 396,
+              "id": 1166,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 395,
+                  "id": 1165,
                   "mutability": "mutable",
                   "name": "collateralAmount",
-                  "nameLocation": "875:16:4",
+                  "nameLocation": "903:16:11",
                   "nodeType": "VariableDeclaration",
-                  "scope": 397,
-                  "src": "867:24:4",
+                  "scope": 1167,
+                  "src": "895:24:11",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -692,10 +673,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 394,
+                    "id": 1164,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "867:7:4",
+                    "src": "895:7:11",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -704,104 +685,21 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "866:26:4"
+              "src": "894:26:11"
             },
-            "scope": 405,
-            "src": "761:132:4",
-            "stateMutability": "view",
-            "virtual": false,
-            "visibility": "external"
-          },
-          {
-            "functionSelector": "1b05ab79",
-            "id": 404,
-            "implemented": false,
-            "kind": "function",
-            "modifiers": [],
-            "name": "estimateTokenAmount",
-            "nameLocation": "908:19:4",
-            "nodeType": "FunctionDefinition",
-            "parameters": {
-              "id": 400,
-              "nodeType": "ParameterList",
-              "parameters": [
-                {
-                  "constant": false,
-                  "id": 399,
-                  "mutability": "mutable",
-                  "name": "depositAmount",
-                  "nameLocation": "936:13:4",
-                  "nodeType": "VariableDeclaration",
-                  "scope": 404,
-                  "src": "928:21:4",
-                  "stateVariable": false,
-                  "storageLocation": "default",
-                  "typeDescriptions": {
-                    "typeIdentifier": "t_uint256",
-                    "typeString": "uint256"
-                  },
-                  "typeName": {
-                    "id": 398,
-                    "name": "uint256",
-                    "nodeType": "ElementaryTypeName",
-                    "src": "928:7:4",
-                    "typeDescriptions": {
-                      "typeIdentifier": "t_uint256",
-                      "typeString": "uint256"
-                    }
-                  },
-                  "visibility": "internal"
-                }
-              ],
-              "src": "927:23:4"
-            },
-            "returnParameters": {
-              "id": 403,
-              "nodeType": "ParameterList",
-              "parameters": [
-                {
-                  "constant": false,
-                  "id": 402,
-                  "mutability": "mutable",
-                  "name": "tokenAmount",
-                  "nameLocation": "1006:11:4",
-                  "nodeType": "VariableDeclaration",
-                  "scope": 404,
-                  "src": "998:19:4",
-                  "stateVariable": false,
-                  "storageLocation": "default",
-                  "typeDescriptions": {
-                    "typeIdentifier": "t_uint256",
-                    "typeString": "uint256"
-                  },
-                  "typeName": {
-                    "id": 401,
-                    "name": "uint256",
-                    "nodeType": "ElementaryTypeName",
-                    "src": "998:7:4",
-                    "typeDescriptions": {
-                      "typeIdentifier": "t_uint256",
-                      "typeString": "uint256"
-                    }
-                  },
-                  "visibility": "internal"
-                }
-              ],
-              "src": "997:21:4"
-            },
-            "scope": 405,
-            "src": "899:120:4",
+            "scope": 1168,
+            "src": "786:135:11",
             "stateMutability": "view",
             "virtual": false,
             "visibility": "external"
           }
         ],
-        "scope": 406,
-        "src": "59:962:4",
+        "scope": 1169,
+        "src": "63:861:11",
         "usedErrors": []
       }
     ],
-    "src": "33:989:4"
+    "src": "35:891:11"
   },
   "compiler": {
     "name": "solc",
@@ -809,7 +707,7 @@
   },
   "networks": {},
   "schemaVersion": "3.4.7",
-  "updatedAt": "2022-05-26T09:00:27.011Z",
+  "updatedAt": "2022-05-27T04:49:26.340Z",
   "devdoc": {
     "kind": "dev",
     "methods": {},
