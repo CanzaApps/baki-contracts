@@ -22,6 +22,10 @@ interface IVault {
         external
         payable;
 
+    function controller(uint256 amountToDeposit, uint256 _mintAmount)
+        external
+        payable;
+
     function getVault(address userAddress)
         external
         view

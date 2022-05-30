@@ -19,7 +19,7 @@ contract Vault is IVault, Ownable {
      * Mints stable coin to the vault contract.
      * @param amountToMint The amount of stable coin to mint.
      */
-    function mint(uint256 amountToMint, uint256 amountToDeposit)
+    function send(uint256 amountToMint, uint256 amountToDeposit)
         external
         payable
         returns (uint256 minted)
@@ -58,18 +58,18 @@ contract Vault is IVault, Ownable {
         emit Deposit(amountToDeposit, amountToMint);
     }
 
-    function controller(uint256 amountToDeposit, uint256 _mintAmount)
-        external
-        override
-    {
-        if (_mintAmount > 0) {
-            uint256 result = mint(_mintAmount, amountToDeposit);
-            require(result == 1, "Mint passed");
-            deposit(amountToDeposit, _mintAmount);
-        } else {
-            deposit(amountToDeposit, _mintAmount);
-        }
-    }
+    // function controller(uint256 amountToDeposit, uint256 _mintAmount)
+    //     external
+    //     override
+    // {
+    // if (_mintAmount > 0) {
+    //     uint256 result = mint(_mintAmount, amountToDeposit);
+    //     require(result == 1, "Mint passed");
+    //     deposit(amountToDeposit, _mintAmount);
+    // } else {
+    //     deposit(amountToDeposit, _mintAmount);
+    // }
+    // }
 
     function getVault(address userAddress)
         external
