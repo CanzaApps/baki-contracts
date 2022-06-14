@@ -14,9 +14,17 @@ interface IVault {
     event Deposit(uint256 amountDeposited, uint256 amountMinted);
 
     // #### Function definitions
-    function mint(uint256 amountToMint) external payable;
+    function mint(uint256 amountToMint, uint256 amountToDeposited)
+        external
+        payable;
 
-    function deposit(uint256 amountToDeposit) external payable;
+    function deposit(uint256 amountToDeposit, uint256 _mintAmount)
+        external
+        payable;
+
+    function controller(uint256 amountToDeposit, uint256 _mintAmount)
+        external
+        payable;
 
     function getVault(address userAddress)
         external

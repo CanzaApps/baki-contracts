@@ -1,1 +1,7 @@
+./node_modules
+.env
+
+
+./oracleServer/node_modules
+./oracleServer/.env
 node_modules
