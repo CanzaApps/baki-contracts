@@ -35,7 +35,7 @@ contract PriceOracle is ChainlinkClient, ConfirmedOwner {
         fee = 0.01 * 10**18; // 0,1 * 10**18 (Varies by network and job)
     }
 
-    // ############################################################################# CFAUSD #############################################################################
+    // ############################################################################# CELOUSD #############################################################################
 
     function submitCELOUSD(string memory url)
         public
@@ -174,7 +174,7 @@ contract PriceOracle is ChainlinkClient, ConfirmedOwner {
     }
 
     // create a request
-    function createRequest(string memory pricePair) public {
+    function createRequest(string memory pricePair) external {
         string memory url = string(abi.encodePacked(baseURL, "/", pricePair));
         emit NewQuery("Requesting price data");
         if (
@@ -200,19 +200,20 @@ contract PriceOracle is ChainlinkClient, ConfirmedOwner {
         }
     }
 
-    function getCELOUSD() public view returns (uint256) {
+    // Get Price data
+    function getCELOUSD() external view returns (uint256) {
         return CELOUSD;
     }
 
-    function getNGNUSD() public view returns (uint256) {
+    function getNGNUSD() external view returns (uint256) {
         return NGNUSD;
     }
 
-    function getCFAUSD() public view returns (uint256) {
+    function getCFAUSD() external view returns (uint256) {
         return CFAUSD;
     }
 
-    function getZARUSD() public view returns (uint256) {
+    function getZARUSD() external view returns (uint256) {
         return ZARUSD;
     }
 }
