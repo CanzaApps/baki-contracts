@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interfaces/IVault.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Vault is IVault, Ownable {
+contract Vault is Ownable {
     IERC20 public immutable token;
     uint256 public totalSupply;
     mapping(address => Vault) public vaults;
