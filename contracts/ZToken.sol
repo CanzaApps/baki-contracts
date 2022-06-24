@@ -10,7 +10,7 @@ import "./interfaces/ZTokenInterface.sol";
  
 contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
 
-    address private vault;
+    // address private vault;
   
     mapping(address => uint256) private _balances;
 
@@ -21,10 +21,10 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     string private _name;
     string private _symbol;
 
-    constructor(address address_, string memory name_, string memory symbol_) {
-      vault = address_;
+    constructor(string memory name_, string memory symbol_) {
       _name = name_;
       _symbol = symbol_;
+      _mint(msg.sender, 1);
     }
 
     //Global mint
@@ -34,15 +34,15 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     mapping(address => mapping(address => uint256)) private userMint;
 
   //  OnlyVault modifier
-    modifier onlyVault {
-      require(msg.sender == vault);
-      _;
-    }
+    // modifier onlyVault {
+    //   require(msg.sender == vault);
+    //   _;
+    // }
 
     /** 
     * @dev these can only be called by the Vault contract
     */
-    function mint(address _userAddress, uint256 _amount) public onlyVault override returns(bool)
+    function mint(address _userAddress, uint256 _amount) public override returns(bool)
     {
         _mint(_userAddress, _amount);
 
@@ -56,16 +56,16 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
 
     }
 
-    function burn(address _userAddress, uint256 _amount) public onlyVault override returns(bool)
+    function burn(address _userAddress, uint256 _amount) public override returns(bool)
     {
         _burn(_userAddress, _amount);
 
         return true;
     }
 
-    function vaultAddress() public view returns(address) {
-        return vault;
-    }
+    // function vaultAddress() public view returns(address) {
+    //     return vault;
+    // }
 
     /**
     * @dev Returns the minted token value for a particular user
