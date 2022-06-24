@@ -1,7 +1,8 @@
 ./node_modules
 .env
-
+package-lock.json
 
 ./oracleServer/node_modules
 ./oracleServer/.env
 node_modules
+build
