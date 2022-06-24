@@ -7,11 +7,9 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "./interfaces/ZTokenInterface.sol";
 
- 
 contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
+    // address private vault;
 
-    address private vault;
-  
     mapping(address => uint256) private _balances;
 
     mapping(address => mapping(address => uint256)) private _allowances;
@@ -21,10 +19,10 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     string private _name;
     string private _symbol;
 
-    constructor(address address_, string memory name_, string memory symbol_) {
-      vault = address_;
-      _name = name_;
-      _symbol = symbol_;
+    constructor(string memory name_, string memory symbol_) {
+        _name = name_;
+        _symbol = symbol_;
+        _mint(msg.sender, 1);
     }
 
     //Global mint
@@ -33,16 +31,19 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     //User mint
     mapping(address => mapping(address => uint256)) private userMint;
 
-  //  OnlyVault modifier
-    modifier onlyVault {
-      require(msg.sender == vault);
-      _;
-    }
+    //  OnlyVault modifier
+    // modifier onlyVault {
+    //   require(msg.sender == vault);
+    //   _;
+    // }
 
-    /** 
-    * @dev these can only be called by the Vault contract
-    */
-    function mint(address _userAddress, uint256 _amount) public onlyVault override returns(bool)
+    /**
+     * @dev these can only be called by the Vault contract
+     */
+    function mint(address _userAddress, uint256 _amount)
+        public
+        override
+        returns (bool)
     {
         _mint(_userAddress, _amount);
 
@@ -53,35 +54,37 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
         userMint[_userAddress][address(this)] += _amount;
 
         return true;
-
     }
 
-    function burn(address _userAddress, uint256 _amount) public onlyVault override returns(bool)
+    function burn(address _userAddress, uint256 _amount)
+        public
+        override
+        returns (bool)
     {
         _burn(_userAddress, _amount);
 
         return true;
     }
 
-    function vaultAddress() public view returns(address) {
-        return vault;
-    }
+    // function vaultAddress() public view returns(address) {
+    //     return vault;
+    // }
 
     /**
-    * @dev Returns the minted token value for a particular user
+     * @dev Returns the minted token value for a particular user
      */
-    function getUserMintValue(address _address) public view returns(uint256) {
+    function getUserMintValue(address _address) public view returns (uint256) {
         return userMint[_address][address(this)];
     }
 
     /**
-    * @dev Returns the total minted token value
+     * @dev Returns the total minted token value
      */
-    function getGlobalMint() public view returns(uint256) {
+    function getGlobalMint() public view returns (uint256) {
         return globalMint[address(this)];
     }
 
-     /**
+    /**
      * @dev Returns the name of the token.
      */
     function name() public view virtual override returns (string memory) {
@@ -123,7 +126,13 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     /**
      * @dev See {IERC20-balanceOf}.
      */
-    function balanceOf(address account) public view virtual override returns (uint256) {
+    function balanceOf(address account)
+        public
+        view
+        virtual
+        override
+        returns (uint256)
+    {
         return _balances[account];
     }
 
@@ -135,7 +144,12 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
      * - `to` cannot be the zero address.
      * - the caller must have a balance of at least `amount`.
      */
-    function transfer(address to, uint256 amount) public virtual override returns (bool) {
+    function transfer(address to, uint256 amount)
+        public
+        virtual
+        override
+        returns (bool)
+    {
         address owner = _msgSender();
         _transfer(owner, to, amount);
         return true;
@@ -144,7 +158,13 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     /**
      * @dev See {IERC20-allowance}.
      */
-    function allowance(address owner, address spender) public view virtual override returns (uint256) {
+    function allowance(address owner, address spender)
+        public
+        view
+        virtual
+        override
+        returns (uint256)
+    {
         return _allowances[owner][spender];
     }
 
@@ -158,7 +178,12 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
      *
      * - `spender` cannot be the zero address.
      */
-    function approve(address spender, uint256 amount) public virtual override returns (bool) {
+    function approve(address spender, uint256 amount)
+        public
+        virtual
+        override
+        returns (bool)
+    {
         address owner = _msgSender();
         _approve(owner, spender, amount);
         return true;
@@ -203,7 +228,11 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
      *
      * - `spender` cannot be the zero address.
      */
-    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
+    function increaseAllowance(address spender, uint256 addedValue)
+        public
+        virtual
+        returns (bool)
+    {
         address owner = _msgSender();
         _approve(owner, spender, allowance(owner, spender) + addedValue);
         return true;
@@ -223,10 +252,17 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
      * - `spender` must have allowance for the caller of at least
      * `subtractedValue`.
      */
-    function decreaseAllowance(address spender, uint256 subtractedValue) public virtual returns (bool) {
+    function decreaseAllowance(address spender, uint256 subtractedValue)
+        public
+        virtual
+        returns (bool)
+    {
         address owner = _msgSender();
         uint256 currentAllowance = allowance(owner, spender);
-        require(currentAllowance >= subtractedValue, "ERC20: decreased allowance below zero");
+        require(
+            currentAllowance >= subtractedValue,
+            "ERC20: decreased allowance below zero"
+        );
         unchecked {
             _approve(owner, spender, currentAllowance - subtractedValue);
         }
@@ -259,7 +295,10 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
         _beforeTokenTransfer(from, to, amount);
 
         uint256 fromBalance = _balances[from];
-        require(fromBalance >= amount, "ERC20: transfer amount exceeds balance");
+        require(
+            fromBalance >= amount,
+            "ERC20: transfer amount exceeds balance"
+        );
         unchecked {
             _balances[from] = fromBalance - amount;
         }
@@ -359,7 +398,10 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     ) internal virtual {
         uint256 currentAllowance = allowance(owner, spender);
         if (currentAllowance != type(uint256).max) {
-            require(currentAllowance >= amount, "ERC20: insufficient allowance");
+            require(
+                currentAllowance >= amount,
+                "ERC20: insufficient allowance"
+            );
             unchecked {
                 _approve(owner, spender, currentAllowance - amount);
             }
