@@ -4,43 +4,74 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "./interfaces/ZTokenInterface.sol";
+
+
+
+/** 
+* @dev Interface of the zTokens to be used by Baki
+*/
+interface ZTokenInterface {
+    /**
+    * @dev Amount of zTokens to be minted for a user
+    * requires onlyVault modifier
+    */
+    function mint(address _address, uint256 _amount) external returns(bool);
+
+    /**
+    * @dev Amount of zTokens to be burned after swap/repay functions
+    * requires onlyVault modifier
+    */
+    function burn(address _address, uint256 _amount) external returns(bool);
+
+    /**
+    * @dev Amount of a particular zTokens minted by Vault contract for a user
+    */
+    function getUserMintValue(address _address) external returns(uint256);
+
+    /**
+    * @dev Global amount of a particular zTokens minted by Vault contract for all users
+    */
+    function getGlobalMint() external returns(uint256);
+}
+
 
 contract Vault is Ownable {
-  /** 
-  * addresses of both the collateral and ztokens
-  */
+    /**
+     * addresses of both the collateral and ztokens
+     */
     address private collateral;
     address private zUSD;
     address private zCFA;
     address private zNGN;
     address private zZAR;
 
-  /** 
-  * exchange rates of 1 USD to zTokens
-  * Currency on the right is 1 value i.e the first currency(left) is compared to 1 value of the last (right) currency
-  * TODO These should be fetched from an Oracle
-  */
+    /**
+     * exchange rates of 1 USD to zTokens
+     * Currency on the right is 1 value i.e the first currency(left) is compared to 1 value of the last (right) currency
+     * TODO These should be fetched from an Oracle
+     */
 
     uint256 private zCFAzUSDPair = 621;
     uint256 private zNGNzUSDPair = 415;
     uint256 private zZARzUSDPair = 16;
+
+ 
   
     constructor() {
     }
 
     /**
-    * Collaterization ratio (in multiple of a 1000 to deal with float point)
-    * Maps user address => value
-    */
+     * Collaterization ratio (in multiple of a 1000 to deal with float point)
+     * Maps user address => value
+     */
     struct IUser {
       uint256 userCollateralBalance;
       uint256 userDebtOutstanding;
       uint256 collaterizationRatio;
     }
-    /** 
-    * userAddress => IUser
-    */ 
+    /**
+     * userAddress => IUser
+     */
     mapping(address => IUser) private User;
 
     // mapping(address => uint256) private userCollateralBalance;
@@ -50,16 +81,47 @@ contract Vault is Ownable {
     uint256 private collaterizationRatioValue = 1.5 * 10**3;
 
     /**
-    * Net User Mint
-    * Maps user address => zUSD address => cumulative mint value
-    */
+     * Net User Mint
+     * Maps user address => zUSD address => cumulative mint value
+     */
     mapping(address => mapping(address => uint256)) private netMintUser;
 
     /**
-    * Net Global Mint
-    * Maps zUSD address => cumulative mint value for all users
-    */
+     * Net Global Mint
+     * Maps zUSD address => cumulative mint value for all users
+     */
     mapping(address => uint256) private netMintGlobal;
+
+
+    // Build Struct to Hold Exchange rates by Address
+
+
+    struct exchangeRatesData {
+        address zToken;
+        uint256 ExRate;
+    }
+
+    //create array of structs
+
+    exchangeRatesData [] public storedExchangeRateData;
+
+    // Set exchange rates and addresses
+
+    mapping( address => uint256) public ExRate;
+
+
+    function setexchangeRates (address _zTokenAddress, uint256 _exchangeRate) public {
+
+       exchangeRatesData memory storedExchangRate = exchangeRatesData(_zTokenAddress, _exchangeRate);
+       ExRate[_zTokenAddress] = _exchangeRate; 
+    }
+
+
+    //Get exchange rates based on address of contract
+
+    function getexchangeRate(address _address ) public view returns (uint256) {
+        return ExRate[_address];
+    }
 
     /** 
     @notice Allows a user to deposit cUSD collateral in exchange for some amount of zUSD.
@@ -68,7 +130,6 @@ contract Vault is Ownable {
     function deposit(uint256 _depositAmount, uint256 _mintAmount) public payable {
         
         require(IERC20(collateral).balanceOf(msg.sender) >= _depositAmount, "Insufficient balance");
-        require(_depositAmount >= _mintAmount, "Insufficient collateral");
        
         // transfer cUSD tokens from user wallet to vault contract
         // IERC20(collateral).transferFrom(msg.sender, address(this), _amount);
@@ -79,6 +140,7 @@ contract Vault is Ownable {
         *  Check if Net Mint User and Net Mint Global = 0 
         */
      if (netMintUser[msg.sender][zUSD] == 0 && netMintGlobal[zUSD] == 0) {
+        require(_depositAmount >= _mintAmount, "Insufficient collateral");
        /**
         * Mint zUSD without checking 
         */
@@ -107,7 +169,7 @@ contract Vault is Ownable {
         if (User[msg.sender].collaterizationRatio >= collaterizationRatioValue) {
           _mint(zUSD, msg.sender, _mintAmount);
 
-          netMintUser[msg.sender][zUSD] += _mintAmount;
+            netMintUser[msg.sender][zUSD] += _mintAmount;
 
           netMintGlobal[zUSD] += _mintAmount;
 
@@ -139,23 +201,49 @@ contract Vault is Ownable {
      }
    }
 
-    /** 
-    * Allows a user to swap zUSD for other zTokens using their exchange rates
-    */
-    function swap(uint256 _amount, address _zToken, uint exchangeRate) public {
-
-      require(IERC20(_zToken).balanceOf(msg.sender) >= _amount, "Insufficient balance");
+    /**
+     * Allows a user to swap zUSD for other zTokens using their exchange rates
+     */
+    function swap(
+        uint256 _amount,
+        address _fromzToken,
+        address _tozToken,
+        uint256 exchangeRate
+    ) public {
+        require(
+            IERC20(_fromzToken).balanceOf(msg.sender) >= _amount,
+            "Insufficient balance"
+        );
 
         uint256 mintAmount;
-      /** 
-      * Get the exchange rate between zToken and USD
-      */
+        /**
+         * Get the exchange rate between zToken and USD
+         */
 
-          mintAmount = _amount * exchangeRate;
+        if (_fromzToken == zUSD){
 
-        _burn(zUSD, msg.sender, _amount);
+            exchangeRate = getexchangeRate(_tozToken);
 
-        _mint(_zToken, msg.sender, mintAmount);
+            mintAmount = _amount * exchangeRate;
+
+        }else if (_tozToken == zUSD){
+
+            exchangeRate = getexchangeRate(_fromzToken);
+
+            mintAmount = _amount/exchangeRate;
+
+        }else{
+
+            uint256 fromExchangeRate = getexchangeRate(_fromzToken);
+            uint256 toExchangeRate  = getexchangeRate(_tozToken);
+
+            mintAmount = _amount / fromExchangeRate * toExchangeRate;
+
+        }
+
+        _burn(_fromzToken, msg.sender, _amount);
+
+        _mint(_tozToken, msg.sender, mintAmount);
     }
 
     /** 
@@ -170,11 +258,13 @@ contract Vault is Ownable {
       /**
       * Substract withdraw from current net mint value and assign new mint value
       */
-      uint256 amountToSubtract = (amountToRepayinUSD/User[msg.sender].userDebtOutstanding) * netMintUser[msg.sender][zUSD];
+      uint256 amountToSubtract = (netMintUser[msg.sender][zUSD] * amountToRepayinUSD/User[msg.sender].userDebtOutstanding);
 
       netMintUser[msg.sender][zUSD] -= amountToSubtract;
 
       netMintGlobal[zUSD] -= amountToSubtract;
+
+        uint256 AdjustedDebt; 
 
        /**
         *  Check if Net Mint User and Net Mint Global = 0 
@@ -184,32 +274,45 @@ contract Vault is Ownable {
         * Get User outstanding debt
         * If 0 replace netMintUser[msg.sender][zUSD] with 1
         */
-        _updateUserDebtOutstanding(1, netMintGlobal[zUSD]);
+        AdjustedDebt = 0;
 
      } else {
         /**
         * Get User outstanding debt
         */
-        _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
-     }
+       // _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
 
+        AdjustedDebt = netMintUser[msg.sender][zUSD]/netMintGlobal[zUSD]*((IERC20(zUSD).totalSupply() + IERC20(zNGN).totalSupply() / zNGNzUSDPair + IERC20(zCFA).totalSupply() / zCFAzUSDPair + IERC20(zZAR).totalSupply() / zZARzUSDPair) - amountToRepayinUSD);
+
+     }
+        
         /** 
         * Check collateral ratio
         */
-        User[msg.sender].collaterizationRatio = (User[msg.sender].userCollateralBalance/User[msg.sender].userDebtOutstanding) * 10**3;
 
+        uint256 AdjustedCollateralizationRatio;
+
+        if(AdjustedDebt > 0){
+            AdjustedCollateralizationRatio = 10**3 * (User[msg.sender].userCollateralBalance - _amountToWithdraw) / AdjustedDebt;
+        }
+        
         string memory result;
 
-        if(User[msg.sender].collaterizationRatio >= collaterizationRatioValue) {
+        if(AdjustedCollateralizationRatio >= collaterizationRatioValue || AdjustedDebt == 0) {
           _burn(zUSD, msg.sender, amountToRepayinUSD);
 
-          _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
+
+        _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
+        
+        if(netMintGlobal[zUSD] > 0){
+            User[msg.sender].collaterizationRatio =  10**3 * (User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding );
+        }
         /** 
         * @TODO - Implement actual transfer of cUSD _amountToWithdraw value
         */
         result = "Withdraw is Valid!";
         } else {
-          result = "Insufficient collateral";
+            result = "Insufficient collateral";
         }
         return result;
     }
@@ -221,11 +324,11 @@ contract Vault is Ownable {
         zCFAzUSDPair = rate;
     }
 
-    function changezNGNzUSDRate(uint rate) public onlyOwner {
+    function changezNGNzUSDRate(uint256 rate) public onlyOwner {
         zNGNzUSDPair = rate;
     }
 
-    function changezZARzUSDRate(uint rate) public onlyOwner {
+    function changezZARzUSDRate(uint256 rate) public onlyOwner {
         zZARzUSDPair = rate;
     }
 
@@ -263,26 +366,26 @@ contract Vault is Ownable {
     */
     function getCollaterizationRatio() public view returns(uint) {
         return User[msg.sender].collaterizationRatio;
-    } 
+    }
 
-    function getUserCollateralBalance() public view returns(uint256) {
+    function getUserCollateralBalance() public view returns (uint256) {
         return User[msg.sender].userCollateralBalance;
     }
 
-    function getUserDebtOutstanding() public view returns(uint256) {
+    function getUserDebtOutstanding() public view returns (uint256) {
         return User[msg.sender].userDebtOutstanding;
     }
 
     /**
-    * Add collateral address
-    */
+     * Add collateral address
+     */
     function addCollateralAddress(address _address) public onlyOwner {
         collateral = _address;
     }
 
     /**
-    * Add the four zToken contract addresses
-    */  
+     * Add the four zToken contract addresses
+     */
     function addZUSDAddress(address _address) public onlyOwner {
         zUSD = _address;
     }
@@ -313,7 +416,11 @@ contract Vault is Ownable {
         ZTokenInterface(_tokenAddress).mint(_userAddress, _amount);
     }
 
-    function _burn(address _tokenAddress, address _userAddress, uint256 _amount ) internal virtual {
+    function _burn(
+        address _tokenAddress,
+        address _userAddress,
+        uint256 _amount
+    ) internal virtual {
         ZTokenInterface(_tokenAddress).burn(_userAddress, _amount);
     }
 
@@ -329,11 +436,14 @@ contract Vault is Ownable {
       /** 
       * Get the exchange rate between zToken and USD
       */
+          exchangeRate = getexchangeRate(_zToken);
+          
           zUSDMintAmount = _amount * 1/(exchangeRate);
 
         _burn(_zToken, msg.sender, _amount);
 
-        _mint(zUSD, msg.sender, zUSDMintAmount);
+        _mint(zUSD, msg.sender, zUSDMintAmount); 
+
 
         return zUSDMintAmount;
     }
@@ -343,11 +453,17 @@ contract Vault is Ownable {
     */
     function _updateUserDebtOutstanding(uint256 _netMintUserzUSDValue, uint256 _netMintGlobalzUSDValue) internal virtual returns(uint256){
 
-        User[msg.sender].userDebtOutstanding = _netMintUserzUSDValue/_netMintGlobalzUSDValue * (IERC20(zUSD).totalSupply() + 
-        IERC20(zNGN).totalSupply() / zNGNzUSDPair + 
-        IERC20(zCFA).totalSupply() / zCFAzUSDPair + 
-        IERC20(zZAR).totalSupply() / zZARzUSDPair);
+        if(_netMintGlobalzUSDValue > 0){
+            User[msg.sender].userDebtOutstanding = _netMintUserzUSDValue/_netMintGlobalzUSDValue * (IERC20(zUSD).totalSupply() + 
+            IERC20(zNGN).totalSupply() / getexchangeRate(zNGN) + 
+            IERC20(zCFA).totalSupply() / getexchangeRate(zCFA) + 
+            IERC20(zZAR).totalSupply() / getexchangeRate(zZAR));
+            
+        }else{
 
+            User[msg.sender].userDebtOutstanding = 0;
+        }
+        
         return User[msg.sender].userDebtOutstanding;
     }
 
