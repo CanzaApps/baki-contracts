@@ -46,9 +46,9 @@ contract BakiVault is Ownable {
     exchangeRatesData[] public storedExchangeRateData;
 
     // Set exchange rates and addresses
-
     mapping(address => uint256) public ExRate;
 
+    // This function should only be called by owner
     function setexchangeRates(address _zTokenAddress, uint256 _exchangeRate)
         public
     {
