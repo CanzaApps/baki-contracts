@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/ZTokenInterface.sol";
 
-
 contract Vault is Ownable {
     /**
      * addresses of both the collateral and ztokens
@@ -57,16 +56,16 @@ contract Vault is Ownable {
     uint256 private netMintGlobal;
 
     /**
-    * map users to accrued fee balance for a single zToken
-    * store 75% swap fee for a single ztoken to be shared by minters
+    * map users to accrued fee balance 
+    * store 75% swap fee to be shared by minters
     * store 25% swap fee seaparately
-    * user => ztoken => uint256
+    * user => uint256
      */
-    mapping(address => mapping(address => uint256)) private userAccruedFeeBalance;
+    mapping(address => uint256) private userAccruedFeeBalance;
 
-    mapping(address => uint256) public globalMintersFee;
+    uint256 public globalMintersFee;
 
-    mapping(address => uint256) public treasuryFee;
+    uint256 public treasuryFee;
 
     /**
     * Store minters addresses as a list
@@ -90,13 +89,13 @@ contract Vault is Ownable {
         User[msg.sender].userCollateralBalance += _depositAmount;
 
         /**
-        *  Check if Net Mint User and Net Mint Global = 0 
+        * if this is user's first mint, add to minters list
+        * Mint zUSD without checking collaterization ratio
         */
-     if (netMintGlobal == 0) {
+     if (netMintUser[msg.sender] == 0) {
         require(_depositAmount >= _mintAmount, "Insufficient collateral");
-       /**
-        * Mint zUSD without checking 
-        */
+
+        mintersAddresses.push(msg.sender);
 
         _mint(zUSD, msg.sender, _mintAmount);
 
@@ -130,12 +129,7 @@ contract Vault is Ownable {
               
         } 
      }
-    /** 
-    * if this is user's first mint, add to minters list
-    */
-     if(netMintUser[msg.sender] == 0) {
-         mintersAddresses.push(msg.sender);
-     }
+  
    }
 
     /**
@@ -151,14 +145,19 @@ contract Vault is Ownable {
             "Insufficient balance"
         );
         uint256 mintAmount;
+        uint256 amountToBeSwapped;
+        uint256 swapFee = (3 * _amount) / 10;
+        uint256 swapFeeInUsd = swapFee * getExchangeRate(_zTokenFrom);
+
         /**
          * Get the USD values of involved zTokens 
+         * Handle minting of new tokens and burning of user tokens
          */
+        uint256 zTokenFromPerUsd = getExchangeRate(_zTokenFrom);
+        uint256 zTokenToPerUsd = getExchangeRate(_zTokenTo);
 
-        uint256 zTokenFromInUsd = getExchangeRate(_zTokenFrom);
-        uint256 zTokenToInUsd = getExchangeRate(_zTokenTo);
-
-        mintAmount = _amount * (zTokenFromInUsd/zTokenToInUsd);
+        amountToBeSwapped = _amount - swapFee;
+        mintAmount = amountToBeSwapped * (zTokenFromPerUsd/zTokenToPerUsd);
 
         _burn(_zTokenFrom, msg.sender, _amount);
 
@@ -167,14 +166,17 @@ contract Vault is Ownable {
         /**
         * Handle swap fees and rewards
         */
-        uint256 swapFee = (3 * _amount) / 10;
+        uint256 globalMintersFeePerTransaction = (3 * swapFeeInUsd) / 4;
+        globalMintersFee += globalMintersFeePerTransaction;
 
-        globalMintersFee[_zTokenFrom] += (3 * swapFee) / 4;
+        treasuryFee += (1 * swapFeeInUsd) / 4;
 
-        treasuryFee[_zTokenFrom] += (1 * swapFee) / 4;
+        /**
+        * @TODO: Send the treasury amount from User to a separate wallet
+         */
 
         for (uint i = 0; i < mintersAddresses.length; i++){
-            userAccruedFeeBalance[mintersAddresses[i]][_zTokenFrom] = (netMintUser[mintersAddresses[i]]/netMintGlobal) * swapFee;
+            userAccruedFeeBalance[mintersAddresses[i]] = (netMintUser[mintersAddresses[i]]/netMintGlobal) * swapFeeInUsd;
         }
     }
 
@@ -196,7 +198,7 @@ contract Vault is Ownable {
 
       netMintGlobal -= amountToSubtract;
 
-        uint256 AdjustedDebt; 
+      uint256 AdjustedDebt; 
 
        /**
         *  Check if Net Mint User and Net Mint Global = 0 
@@ -403,6 +405,34 @@ contract Vault is Ownable {
         
         return User[msg.sender].userDebtOutstanding;
     }
+
+    /**
+    * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
+     */
+    // function _testImpact(uint256 _zUsdMintAmount, uint256 _zUsdBurnAmount,uint256  _depositAmount, uint256 _withdrawalAmount) internal virtual returns(bool){
+    //     /**
+    //     * Initialize test variables
+    //      */
+    //     uint256 getCollateralValue;
+    //     uint256 collateralMovement;
+    //     uint256 netMintMovement;
+    //     /**
+    //     * Adjuested Net Mint is initialized from netMintUser[msg.sender]
+    //      */
+    //     uint256 adjustedNetMint = netMintUser[msg.sender];
+    //     /**
+    //     * Global Net Mint is initialized from netMintGlobal
+    //      */
+    //     uint256 globalNetMint = netMintGlobal;
+
+    //     uint256 collaterization_ratio = 1.5;
+
+    //     collateralMovement = _depositAmount - _withdrawalAmount + User[msg.sender].userCollateralBalance;
+
+    //     netMintMovement = _zUsdMintAmount - (netMintUser[msg.sender] * (_zUsdBurnAmount / User[msg.sender].userDebtOutstanding));
+
+        
+    // }
 
     //test function
     function getUserDebtOutstanding(
