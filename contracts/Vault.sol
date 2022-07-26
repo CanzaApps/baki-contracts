@@ -67,6 +67,8 @@ contract Vault is Ownable {
 
     uint256 public treasuryFee;
 
+    address treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
+
     /**
     * Store minters addresses as a list
     */
@@ -169,14 +171,20 @@ contract Vault is Ownable {
         uint256 globalMintersFeePerTransaction = (3 * swapFeeInUsd) / 4;
         globalMintersFee += globalMintersFeePerTransaction;
 
-        treasuryFee += (1 * swapFeeInUsd) / 4;
+        treasuryFeePerTransaction += (1 * swapFeeInUsd) / 4;
+        treasuryFee += treasuryFeePerTransaction;
 
         /**
-        * @TODO: Send the treasury amount from User to a separate wallet
+        * Send the treasury amount from User to a treasury wallet
          */
+        IERC20(zUSD).transferFrom(
+            msg.sender,
+            treasuryWallet,
+            treasuryFeePerTransaction
+        );
 
         for (uint i = 0; i < mintersAddresses.length; i++){
-            userAccruedFeeBalance[mintersAddresses[i]] = (netMintUser[mintersAddresses[i]]/netMintGlobal) * swapFeeInUsd;
+            userAccruedFeeBalance[mintersAddresses[i]] = (netMintUser[mintersAddresses[i]]/netMintGlobal) * globalMintersFeePerTransaction;
         }
     }
 
