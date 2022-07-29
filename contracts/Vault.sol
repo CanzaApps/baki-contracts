@@ -69,6 +69,7 @@ contract Vault is Ownable {
 
     address treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
 
+
     /**
     * Store minters addresses as a list
     */
@@ -78,7 +79,13 @@ contract Vault is Ownable {
     @notice Allows a user to deposit cUSD collateral in exchange for some amount of zUSD.
      _depositAmount  The amount of cUSD the user sent in the transaction
      */
-    function depositAndMint(uint256 _depositAmount, uint256 _mintAmount) public payable {
+    function depositAndMint(
+        uint256 _depositAmount, 
+        uint256 _mintAmount,
+        uint256 zNGNUSDRate, 
+        uint256 zCFAUSDRate, 
+        uint256 zZARUSDRate
+    ) public payable {
         
         require(IERC20(collateral).balanceOf(msg.sender) >= _depositAmount, "Insufficient balance");
        
@@ -105,7 +112,7 @@ contract Vault is Ownable {
 
         netMintGlobal += _mintAmount;
 
-        _updateUserDebtOutstanding(netMintUser[msg.sender], netMintGlobal);
+       _updateUserDebtOutstanding(netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
         User[msg.sender].collaterizationRatio = (10**3 * User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding);
      }
@@ -113,7 +120,7 @@ contract Vault is Ownable {
         /**
         * Get User outstanding debt
         */
-        _updateUserDebtOutstanding(netMintUser[msg.sender], netMintGlobal);
+        _updateUserDebtOutstanding(netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
         /** 
         * Check collateral ratio
         */
@@ -127,7 +134,7 @@ contract Vault is Ownable {
 
           netMintGlobal += _mintAmount;
 
-          _updateUserDebtOutstanding(netMintUser[msg.sender], netMintGlobal);
+         _updateUserDebtOutstanding(netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
               
         } 
      }
@@ -140,7 +147,9 @@ contract Vault is Ownable {
     function swap(
         uint256 _amount,
         address _zTokenFrom,
-        address _zTokenTo
+        address _zTokenTo,
+        uint256 _zTokenFromUSDRate,
+        uint256 _zTokenToUSDRate
     ) public {
         require(
             IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amount,
@@ -149,17 +158,14 @@ contract Vault is Ownable {
         uint256 mintAmount;
         uint256 amountToBeSwapped;
         uint256 swapFee = (3 * _amount) / 10;
-        uint256 swapFeeInUsd = swapFee * getExchangeRate(_zTokenFrom);
+        uint256 swapFeeInUsd = swapFee * _zTokenFromUSDRate;
 
         /**
          * Get the USD values of involved zTokens 
          * Handle minting of new tokens and burning of user tokens
          */
-        uint256 zTokenFromPerUsd = getExchangeRate(_zTokenFrom);
-        uint256 zTokenToPerUsd = getExchangeRate(_zTokenTo);
-
         amountToBeSwapped = _amount - swapFee;
-        mintAmount = amountToBeSwapped * (zTokenFromPerUsd/zTokenToPerUsd);
+        mintAmount = amountToBeSwapped * (_zTokenFromUSDRate/_zTokenToUSDRate);
 
         _burn(_zTokenFrom, msg.sender, _amount);
 
@@ -171,7 +177,7 @@ contract Vault is Ownable {
         uint256 globalMintersFeePerTransaction = (3 * swapFeeInUsd) / 4;
         globalMintersFee += globalMintersFeePerTransaction;
 
-        treasuryFeePerTransaction += (1 * swapFeeInUsd) / 4;
+        uint256 treasuryFeePerTransaction = (1 * swapFeeInUsd) / 4;
         treasuryFee += treasuryFeePerTransaction;
 
         /**
@@ -191,9 +197,17 @@ contract Vault is Ownable {
     /** 
     * Allows to user to repay and/or withdraw their collateral
     */
-    function repayAndWithdraw(uint256 _amountToRepay, uint256 _amountToWithdraw, address _zToken, uint exchangeRate) public payable {
+    function repayAndWithdraw(
+        uint256 _amountToRepay, 
+        uint256 _amountToWithdraw, 
+        address _zToken, 
+        uint _zTokenUSDRate,
+        uint256 zNGNUSDRate, 
+        uint256 zCFAUSDRate, 
+        uint256 zZARUSDRate
+    ) public payable {
     
-      uint256 amountToRepayinUSD = _repay(_amountToRepay, _zToken, exchangeRate);
+      uint256 amountToRepayinUSD = _repay(_amountToRepay, _zToken,_zTokenUSDRate);
 
       require(amountToRepayinUSD >= _amountToWithdraw, "Insufficient Collateral");
 
@@ -224,7 +238,9 @@ contract Vault is Ownable {
         */
        // _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
 
-        AdjustedDebt = netMintUser[msg.sender]/netMintGlobal*((IERC20(zUSD).totalSupply() + IERC20(zNGN).totalSupply() / zNGNzUSDPair + IERC20(zCFA).totalSupply() / zCFAzUSDPair + IERC20(zZAR).totalSupply() / zZARzUSDPair) - amountToRepayinUSD);
+        AdjustedDebt = netMintUser[msg.sender]/netMintGlobal*((IERC20(zUSD).totalSupply() + 
+        IERC20(zNGN).totalSupply() / zNGNUSDRate + IERC20(zCFA).totalSupply() / zCFAUSDRate + 
+        IERC20(zZAR).totalSupply() / zZARUSDRate) - amountToRepayinUSD);
 
      }
         
@@ -243,7 +259,7 @@ contract Vault is Ownable {
           _burn(zUSD, msg.sender, amountToRepayinUSD);
 
 
-        _updateUserDebtOutstanding(netMintUser[msg.sender], netMintGlobal);
+        _updateUserDebtOutstanding(netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
         
         if(netMintGlobal > 0){
             User[msg.sender].collaterizationRatio =  10**3 * (User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding );
@@ -271,6 +287,13 @@ contract Vault is Ownable {
 
     function getExchangeRate(address _address ) public view returns (uint256) {
         return ratePerUsd[_address];
+    }
+
+    /**
+    * Get user balance
+    */
+    function getBalance(address _token) public view returns(uint256){
+        return IERC20(_token).balanceOf(msg.sender);
     }
 
     /**
@@ -375,17 +398,15 @@ contract Vault is Ownable {
     function _repay(
         uint256 _amount,
         address _zToken,
-        uint256 exchangeRate
+        uint256 _zTokenUsdRate
     ) internal virtual returns (uint256) {
         // require(IERC20(_zToken).balanceOf(msg.sender) >= _amount, "Insufficient balance");
         uint256 zUSDMintAmount;
 
       /** 
-      * Get the exchange rate between zToken and USD
-      */
-          exchangeRate = getExchangeRate(_zToken);
-          
-          zUSDMintAmount = _amount * 1/(exchangeRate);
+      * Get the amount to mint in zUSD
+      */ 
+        zUSDMintAmount = _amount * (1/_zTokenUsdRate);
 
         _burn(_zToken, msg.sender, _amount);
 
@@ -398,13 +419,19 @@ contract Vault is Ownable {
     /** 
     * Get User Outstanding Debt
     */
-    function _updateUserDebtOutstanding(uint256 _netMintUserzUSDValue, uint256 _netMintGlobalzUSDValue) internal virtual returns(uint256){
+    function _updateUserDebtOutstanding(
+        uint256 _netMintUserzUSDValue, 
+        uint256 _netMintGlobalzUSDValue, 
+        uint256 zNGNUSDRate, 
+        uint256 zCFAUSDRate, 
+        uint256 zZARUSDRate
+    ) internal virtual returns(uint256){
 
         if(_netMintGlobalzUSDValue > 0){
             User[msg.sender].userDebtOutstanding = _netMintUserzUSDValue/_netMintGlobalzUSDValue * (IERC20(zUSD).totalSupply() + 
-            IERC20(zNGN).totalSupply() / getExchangeRate(zNGN) + 
-            IERC20(zCFA).totalSupply() / getExchangeRate(zCFA) + 
-            IERC20(zZAR).totalSupply() / getExchangeRate(zZAR));
+            IERC20(zNGN).totalSupply() / zNGNUSDRate + 
+            IERC20(zCFA).totalSupply() / zCFAUSDRate + 
+            IERC20(zZAR).totalSupply() / zZARUSDRate);
             
         }else{
 
@@ -461,3 +488,4 @@ contract Vault is Ownable {
         return User[msg.sender].userDebtOutstanding;
     }
 }
+
