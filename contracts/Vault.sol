@@ -462,30 +462,38 @@ contract Vault is Ownable {
     /**
     * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
      */
-    // function _testImpact(uint256 _zUsdMintAmount, uint256 _zUsdBurnAmount,uint256  _depositAmount, uint256 _withdrawalAmount) internal virtual returns(bool){
-    //     /**
-    //     * Initialize test variables
-    //      */
-    //     uint256 getCollateralValue;
-    //     uint256 collateralMovement;
-    //     uint256 netMintMovement;
-    //     /**
-    //     * Adjuested Net Mint is initialized from netMintUser[msg.sender]
-    //      */
-    //     uint256 adjustedNetMint = netMintUser[msg.sender];
-    //     /**
-    //     * Global Net Mint is initialized from netMintGlobal
-    //      */
-    //     uint256 globalNetMint = netMintGlobal;
+    function _testImpact(address _address, uint256 _zUsdMintAmount, uint256 _zUsdBurnAmount,uint256  _depositAmount, uint256 _withdrawalAmount) internal virtual returns(bool){
+        /**
+        * Initialize test variables
+         */
+        uint256 collateralMovement;
+        uint256 netMintMovement;
+        /**
+        * Adjuested Net Mint is initialized from netMintUser[msg.sender]
+         */
+        uint256 adjustedNetMint = netMintUser[_address];
+        /**
+        * Global Net Mint is initialized from netMintGlobal
+         */
+        uint256 globalNetMint = netMintGlobal;
 
-    //     uint256 collaterization_ratio = 1.5;
+        uint256 collaterizationRatio = 1.5 * 10**3;
 
-    //     collateralMovement = _depositAmount - _withdrawalAmount + User[msg.sender].userCollateralBalance;
+        collateralMovement = _depositAmount - _withdrawalAmount + User[_address].userCollateralBalance;
 
-    //     netMintMovement = _zUsdMintAmount - (netMintUser[msg.sender] * (_zUsdBurnAmount / User[msg.sender].userDebtOutstanding));
+        netMintMovement = _zUsdMintAmount - (netMintUser[_address] * (_zUsdBurnAmount / User[_address].userDebtOutstanding));
 
+        adjustedNetMint += netMintMovement;
+        globalNetMint += netMintMovement;
+
+        uint256 debt = (globalNetMint + _zUsdMintAmount - _zUsdBurnAmount) * adjustedNetMint/globalNetMint;
         
-    // }
+        uint256 collateralRatioMultipliedByDebt = debt * collaterizationRatio / 10**3;
+
+        if (collateralMovement >= collateralRatioMultipliedByDebt) {
+            return true;
+        }
+    }
 
     //test function
     function getUserDebtOutstanding(
