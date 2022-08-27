@@ -24,8 +24,6 @@ contract Vault is Ownable {
     uint256 private zNGNzUSDPair = 415;
     uint256 private zZARzUSDPair = 16;
 
-    
-  
     constructor() {
     }
 
@@ -87,30 +85,33 @@ contract Vault is Ownable {
         uint256 zZARUSDRate
     ) public payable {
         
-        require(IERC20(collateral).balanceOf(msg.sender) >= _depositAmount, "Insufficient balance");
+        uint256 _depositAmountWithDecimal = _getDecimal(_depositAmount);
+        uint256 _mintAmountWithDecimal = _getDecimal(_mintAmount);
+
+        require(IERC20(collateral).balanceOf(msg.sender) >= _depositAmountWithDecimal, "Insufficient balance");
        
         // transfer cUSD tokens from user wallet to vault contract
         IERC20(collateral).transferFrom(
             msg.sender,
             address(this),
-            _depositAmount
+            _depositAmountWithDecimal
         );
-        User[msg.sender].userCollateralBalance += _depositAmount;
+        User[msg.sender].userCollateralBalance += _depositAmountWithDecimal;
 
         /**
         * if this is user's first mint, add to minters list
         * Mint zUSD without checking collaterization ratio
         */
      if (netMintUser[msg.sender] == 0) {
-        require(_depositAmount >= _mintAmount, "Insufficient collateral");
+        require(_depositAmountWithDecimal >= _mintAmountWithDecimal, "Insufficient collateral");
 
         mintersAddresses.push(msg.sender);
 
-        _mint(zUSD, msg.sender, _mintAmount);
+        _mint(zUSD, msg.sender, _mintAmountWithDecimal);
 
-        netMintUser[msg.sender] += _mintAmount;
+        netMintUser[msg.sender] += _mintAmountWithDecimal;
 
-        netMintGlobal += _mintAmount;
+        netMintGlobal += _mintAmountWithDecimal;
 
        _updateUserDebtOutstanding(netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
@@ -128,11 +129,11 @@ contract Vault is Ownable {
 
 
         if (User[msg.sender].collaterizationRatio >= collaterizationRatioValue) {
-          _mint(zUSD, msg.sender, _mintAmount);
+          _mint(zUSD, msg.sender, _mintAmountWithDecimal);
 
-          netMintUser[msg.sender] += _mintAmount;
+          netMintUser[msg.sender] += _mintAmountWithDecimal;
 
-          netMintGlobal += _mintAmount;
+          netMintGlobal += _mintAmountWithDecimal;
 
          _updateUserDebtOutstanding(netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
               
@@ -151,23 +152,26 @@ contract Vault is Ownable {
         uint256 _zTokenFromUSDRate,
         uint256 _zTokenToUSDRate
     ) public {
+
+        uint256 _amountWithDecimal = _getDecimal(_amount);
+
         require(
-            IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amount,
+            IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amountWithDecimal,
             "Insufficient balance"
         );
         uint256 mintAmount;
         uint256 amountToBeSwapped;
-        uint256 swapFee = (3 * _amount) / 10;
+        uint256 swapFee = (3 * _amountWithDecimal) / 10;
         uint256 swapFeeInUsd = swapFee * _zTokenFromUSDRate;
 
         /**
          * Get the USD values of involved zTokens 
          * Handle minting of new tokens and burning of user tokens
          */
-        amountToBeSwapped = _amount - swapFee;
+        amountToBeSwapped = _amountWithDecimal - swapFee;
         mintAmount = amountToBeSwapped * (_zTokenFromUSDRate/_zTokenToUSDRate);
 
-        _burn(_zTokenFrom, msg.sender, _amount);
+        _burn(_zTokenFrom, msg.sender, _amountWithDecimal);
 
         _mint(_zTokenTo, msg.sender, mintAmount);
 
@@ -206,10 +210,13 @@ contract Vault is Ownable {
         uint256 zCFAUSDRate, 
         uint256 zZARUSDRate
     ) public payable {
-    
-      uint256 amountToRepayinUSD = _repay(_amountToRepay, _zToken,_zTokenUSDRate);
 
-      require(amountToRepayinUSD >= _amountToWithdraw, "Insufficient Collateral");
+      uint256 _amountToRepayWithDecimal = _getDecimal(_amountToRepay);
+      uint256 _amountToWithdrawWithDecimal = _getDecimal(_amountToWithdraw);
+    
+      uint256 amountToRepayinUSD = _repay(_amountToRepayWithDecimal, _zToken,_zTokenUSDRate);
+
+      require(amountToRepayinUSD >= _amountToWithdrawWithDecimal, "Insufficient Collateral");
 
       /**
       * Substract withdraw from current net mint value and assign new mint value
@@ -251,7 +258,7 @@ contract Vault is Ownable {
         uint256 AdjustedCollateralizationRatio;
 
         if(AdjustedDebt > 0){
-            AdjustedCollateralizationRatio = 10**3 * (User[msg.sender].userCollateralBalance - _amountToWithdraw) / AdjustedDebt;
+            AdjustedCollateralizationRatio = 10**3 * (User[msg.sender].userCollateralBalance - _amountToWithdrawWithDecimal) / AdjustedDebt;
         }
         
 
@@ -265,12 +272,11 @@ contract Vault is Ownable {
             User[msg.sender].collaterizationRatio =  10**3 * (User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding );
         }
         /** 
-        * @TODO - Implement actual transfer of cUSD _amountToWithdraw value
+        * @TODO - Implement actual transfer of cUSD _amountToWithdrawWithDecimal value
         */
-        IERC20(collateral).transferFrom(
-            address(this),
+        IERC20(collateral).transfer(
             msg.sender,
-            _amountToWithdraw
+            _amountToWithdrawWithDecimal
         );
     }
     }
@@ -415,6 +421,18 @@ contract Vault is Ownable {
 
         return zUSDMintAmount;
     }
+
+    /**
+    * Multiply values by 10^18
+     */
+    function _getDecimal(uint256 amount) internal virtual returns (uint256) {
+        uint256 decimalAmount;
+
+        decimalAmount = amount * 10 ** 18;
+
+        return decimalAmount;
+    }
+
 
     /** 
     * Get User Outstanding Debt
