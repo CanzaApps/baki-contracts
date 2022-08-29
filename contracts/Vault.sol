@@ -4,9 +4,10 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/ZTokenInterface.sol";
 
-contract Vault is Ownable {
+contract Vault is ReentrancyGuard, Ownable {
     /**
      * addresses of both the collateral and ztokens
      */
@@ -72,6 +73,10 @@ contract Vault is Ownable {
     */
     address[] public mintersAddresses;
 
+    event Deposit(address indexed _account, address indexed _token, uint256 _depositAmount, uint256 _mintAmount);
+    event Swap(address indexed _account, address indexed _zTokenFrom, address indexed _zTokenTo, uint256 _amount, uint256 _mintAmount);
+    event Withdraw(address indexed _account, address indexed _token, uint256 _amountToRepay, uint256 _amountToWithdraw);
+    event Liquidate(address indexed _account, uint256 indexed debt, uint256 indexed rewards, address liquidator);
     /** 
     @notice Allows a user to deposit cUSD collateral in exchange for some amount of zUSD.
      _depositAmount  The amount of cUSD the user sent in the transaction
@@ -82,7 +87,7 @@ contract Vault is Ownable {
         uint256 zNGNUSDRate, 
         uint256 zCFAUSDRate, 
         uint256 zZARUSDRate
-    ) public payable {
+    ) external nonReentrant payable {
         
         uint256 _depositAmountWithDecimal = _getDecimal(_depositAmount);
         uint256 _mintAmountWithDecimal = _getDecimal(_mintAmount);
@@ -139,6 +144,7 @@ contract Vault is Ownable {
         } 
      }
   
+        emit Deposit(msg.sender, collateral, _depositAmount, _mintAmount);
    }
 
     /**
@@ -150,7 +156,7 @@ contract Vault is Ownable {
         address _zTokenTo,
         uint256 _zTokenFromUSDRate,
         uint256 _zTokenToUSDRate
-    ) public {
+    ) external nonReentrant {
 
         uint256 _amountWithDecimal = _getDecimal(_amount);
 
@@ -203,6 +209,7 @@ contract Vault is Ownable {
         for (uint i = 0; i < mintersAddresses.length; i++){
             userAccruedFeeBalance[mintersAddresses[i]] = (netMintUser[mintersAddresses[i]]/netMintGlobal) * globalMintersFeePerTransaction;
         }
+        emit Swap(msg.sender, _zTokenFrom, _zTokenTo, _amount, mintAmount);
     }
 
     /** 
@@ -216,7 +223,7 @@ contract Vault is Ownable {
         uint256 zNGNUSDRate, 
         uint256 zCFAUSDRate, 
         uint256 zZARUSDRate
-    ) public payable {
+    ) external nonReentrant payable {
 
       uint256 _amountToRepayWithDecimal = _getDecimal(_amountToRepay);
       uint256 _amountToWithdrawWithDecimal = _getDecimal(_amountToWithdraw);
@@ -262,7 +269,7 @@ contract Vault is Ownable {
      }
         
         /** 
-        * Check collateral ratio
+        * Check collateral ratio if Adjusted is more than 0 else go straight to handle repyment and withdraw
         */
 
         if(AdjustedDebt > 0){
@@ -287,6 +294,7 @@ contract Vault is Ownable {
             _amountToWithdrawWithDecimal
         );
     }
+        emit Withdraw(msg.sender, _zToken, _amountToRepay, _amountToWithdraw);
     }
 
     function liquidate(
@@ -294,7 +302,7 @@ contract Vault is Ownable {
         uint256 zNGNUSDRate, 
         uint256 zCFAUSDRate, 
         uint256 zZARUSDRate
-    ) public payable {
+    ) external nonReentrant payable {
         /**
         * Update the user's debt balance with latest price feeds
          */
@@ -327,20 +335,8 @@ contract Vault is Ownable {
         uint256 totalRewards = User[_user].userDebtOutstanding + rewardFee;
 
         IERC20(collateral).transferFrom(msg.sender, address(this), totalRewards);
-    }
 
-    /**
-    * get and set exchange rate data of zTokens per USD
-     */
-    mapping( address => uint256) public ratePerUsd;
-
-
-    function setExchangeRate(address _address, uint256 _rate) public {
-       ratePerUsd[_address] = _rate; 
-    }
-
-    function getExchangeRate(address _address ) public view returns (uint256) {
-        return ratePerUsd[_address];
+        emit Liquidate(_user, User[_user].userDebtOutstanding, totalRewards, msg.sender);
     }
 
     /**
