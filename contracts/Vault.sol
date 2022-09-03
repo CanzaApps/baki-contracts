@@ -43,9 +43,9 @@ contract Vault is ReentrancyGuard, Ownable {
      */
     mapping(address => IUser) private User;
 
-    uint256 public constant COLLATERIZATION_RATIO_THRESHOLD = 1.5 * 10**3;
+    uint256 public COLLATERIZATION_RATIO_THRESHOLD = 1.5 * 10**3;
 
-    uint256 public constant LIQUIDATION_REWARD = 10;
+    uint256 public LIQUIDATION_REWARD = 10;
     /**
      * Net User Mint
      * Maps user address => cumulative mint value
@@ -355,12 +355,16 @@ contract Vault is ReentrancyGuard, Ownable {
         if(!transferSuccess) revert TransferFailed();
 
         emit Liquidate(_user, User[_user].userDebtOutstanding, totalRewards, msg.sender);
+
+        /**
+        * @TODO - netMintGlobal = netMintGlobal - netMintUser, Update users collateral balance by substracting the totalRewards, netMintUser = 0, userDebtOutstanding = 0
+         */
     }
 
     /**
     * Get user balance
     */
-    function getBalance(address _token) public view returns(uint256){
+    function getBalance(address _token) external view returns(uint256){
         return IERC20(_token).balanceOf(msg.sender);
     }
 
@@ -368,7 +372,7 @@ contract Vault is ReentrancyGuard, Ownable {
      * @dev Returns the minted token value for a particular user
      */
     function getNetUserMintValue(address _address)
-        public
+        external
         view
         returns (uint256)
     {
@@ -379,7 +383,7 @@ contract Vault is ReentrancyGuard, Ownable {
      * @dev Returns the total minted token value
      */
     function getNetGlobalMintValue()
-        public
+        external
         view
         returns (uint256)
     {
@@ -389,55 +393,58 @@ contract Vault is ReentrancyGuard, Ownable {
     /**
      * Get User struct values
      */
-    function getCollaterizationRatio() public view returns (uint256) {
+    function getCollaterizationRatio() external view returns (uint256) {
         return User[msg.sender].collaterizationRatio;
     }
 
-    function getUserCollateralBalance() public view returns (uint256) {
+/**
+* Allow values such as collateral balance and debt outstanding to be updated without propping up wallet(metamask) interaction. This will enable us display these values in realtime to the users.
+ */
+    function getUserCollateralBalance() external view returns (uint256) {
         return User[msg.sender].userCollateralBalance;
     }
 
-    function getUserDebtOutstanding() public view returns (uint256) {
+    function getUserDebtOutstanding() external view returns (uint256) {
         return User[msg.sender].userDebtOutstanding;
     }
 
     /**
      * Add collateral address
      */
-    function addCollateralAddress(address _address) public onlyOwner {
+    function addCollateralAddress(address _address) external onlyOwner {
         collateral = _address;
     }
 
     /**
      * Add the four zToken contract addresses
      */
-    function addZUSDAddress(address _address) public onlyOwner {
+    function addZUSDAddress(address _address) external onlyOwner {
         zUSD = _address;
     }
 
-    function addZNGNAddress(address _address) public onlyOwner {
+    function addZNGNAddress(address _address) external onlyOwner {
         zNGN = _address;
     }
 
-    function addZCFAAddress(address _address) public onlyOwner {
+    function addZCFAAddress(address _address) external onlyOwner {
         zCFA = _address;
     }
 
-    function addZZARAddress(address _address) public onlyOwner {
+    function addZZARAddress(address _address) external onlyOwner {
         zZAR = _address;
     }
 
     /**
      * Get Total Supply of zTokens
      */
-    function getTotalSupply(address _address) public view returns (uint256) {
+    function getTotalSupply(address _address) external view returns (uint256) {
         return IERC20(_address).totalSupply();
     }
 
     /**
     * view minters addresses
     */
-    function viewMintersAddress() public view returns (address[] memory) {
+    function viewMintersAddress() external view returns (address[] memory) {
         return mintersAddresses;
     }
 
@@ -527,6 +534,20 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     /**
+    * set collaterization ratio threshold
+     */
+     function setCollaterizationRatioThreshold(uint256 value) external onlyOwner {
+        COLLATERIZATION_RATIO_THRESHOLD = value;
+     }
+
+    /**
+    * set liquidation reward
+     */
+    function setLiquidationReward(uint256 value) external onlyOwner {
+        LIQUIDATION_REWARD = value;
+    }
+
+    /**
     * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
      */
     function _testImpact(address _address, uint256 _zUsdMintAmount, uint256 _zUsdBurnAmount,uint256  _depositAmount, uint256 _withdrawalAmount) internal virtual returns(bool){
@@ -544,7 +565,7 @@ contract Vault is ReentrancyGuard, Ownable {
          */
         uint256 globalNetMint = netMintGlobal;
 
-        uint256 collaterizationRatio = 1.5 * 10**3;
+        uint256 collaterizationRatio = COLLATERIZATION_RATIO_THRESHOLD;
 
         collateralMovement = _depositAmount - _withdrawalAmount + User[_address].userCollateralBalance;
 
@@ -568,7 +589,7 @@ contract Vault is ReentrancyGuard, Ownable {
     //     uint256 _netMintGlobalzUSDValue,
     //     uint256 totalSupply,
     //     uint256 USDSupply
-    // ) public returns (uint256) {
+    // ) external returns (uint256) {
     //     User[msg.sender].userDebtOutstanding =
     //         (_netMintUserzUSDValue / _netMintGlobalzUSDValue) *
     //         (USDSupply +
