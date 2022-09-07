@@ -118,19 +118,18 @@ contract Vault is ReentrancyGuard, Ownable {
 
         mintersAddresses.push(msg.sender);
 
-        bool mintSuccess = _mint(zUSD, msg.sender, _mintAmountWithDecimal);
+    //     bool mintSuccess = _mint(zUSD, msg.sender, _mintAmountWithDecimal);
 
-        if(!mintSuccess) revert MintFailed();
+    //     if(!mintSuccess) revert MintFailed();
 
-        netMintUser[msg.sender] += _mintAmountWithDecimal;
+    //     netMintUser[msg.sender] += _mintAmountWithDecimal;
 
-        netMintGlobal += _mintAmountWithDecimal;
+    //     netMintGlobal += _mintAmountWithDecimal;
 
-       _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
+    //    _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
-        User[msg.sender].collaterizationRatio = (10**3 * User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding);
+    //     User[msg.sender].collaterizationRatio = (10**3 * User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding);
      }
-     else {
         /**
         * Get User outstanding debt
         */
@@ -151,8 +150,7 @@ contract Vault is ReentrancyGuard, Ownable {
         netMintGlobal += _mintAmountWithDecimal;
 
         _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
-              
-     }
+        
   
         emit Deposit(msg.sender, collateral, _depositAmount, _mintAmount);
    }
@@ -544,7 +542,7 @@ contract Vault is ReentrancyGuard, Ownable {
     * set liquidation reward
      */
     function setLiquidationReward(uint256 value) external onlyOwner {
-        LIQUIDATION_REWARD = value;
+        LIQUIDATION_REWARD = value; 
     }
 
     /**
