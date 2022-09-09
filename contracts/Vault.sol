@@ -39,10 +39,37 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 userDebtOutstanding;
         uint256 collaterizationRatio;
     }
+
+    mapping(address => IUser) private User;
+
+     /**
+    * Exchange rates struct
+    */
+    struct ExRates {
+        uint256 zNGNUSDRate;
+        uint256 zCFAUSDRate; 
+        uint256 zZARUSDRate;
+    }
+
+    /**
+    * Impact struct
+     */
+    struct TestImpact {
+        uint256 collateralMovement;
+        uint256 netMintMovement;
+        uint256 adjustedNetMint;
+        uint256 globalNetMint;
+        uint256 collaterizationRatio;
+        uint256 userDebt;
+        uint256 globalDebt;
+        uint256 adjustedDebt;
+        uint256 collateralRatioMultipliedByDebt;
+    }
+
     /**
      * userAddress => IUser
      */
-    mapping(address => IUser) private User;
+
 
     uint256 public COLLATERIZATION_RATIO_THRESHOLD = 1.5 * 10**3;
 
@@ -112,7 +139,6 @@ contract Vault is ReentrancyGuard, Ownable {
 
         /**
         * if this is user's first mint, add to minters list
-        * Mint zUSD without checking collaterization ratio
         */
      if (netMintUser[msg.sender] == 0) {
         require(_depositAmountWithDecimal >= _mintAmountWithDecimal, "Insufficient collateral");
@@ -127,7 +153,7 @@ contract Vault is ReentrancyGuard, Ownable {
 
         _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
-        bool testBeforeMintImpact = _testImpact(msg.sender, _mintAmountWithDecimal, 0, _depositAmountWithDecimal, 0, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
+        bool testBeforeMintImpact = _testImpact(_mintAmountWithDecimal, 0, _depositAmountWithDecimal, 0, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
         if(!testBeforeMintImpact) revert ImpactFailed();
 
@@ -146,7 +172,7 @@ contract Vault is ReentrancyGuard, Ownable {
 
         _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
-        bool testAfterMintImpact = _testImpact(msg.sender, _mintAmountWithDecimal, 0, _depositAmountWithDecimal, 0, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
+        bool testAfterMintImpact = _testImpact(_mintAmountWithDecimal, 0, _depositAmountWithDecimal, 0, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
         if(!testAfterMintImpact) revert ImpactFailed();
   
@@ -249,7 +275,7 @@ contract Vault is ReentrancyGuard, Ownable {
      */
     _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
-        bool testBeforeBurnImpact = _testImpact(msg.sender, 0, amountToRepayinUSD, 0, _amountToWithdrawWithDecimal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
+        bool testBeforeBurnImpact = _testImpact(0, amountToRepayinUSD, 0, _amountToWithdrawWithDecimal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
         if(!testBeforeBurnImpact) revert ImpactFailed();
 
@@ -273,7 +299,7 @@ contract Vault is ReentrancyGuard, Ownable {
          */
         _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
-         bool testAfterBurnImpact = _testImpact(msg.sender, 0, amountToRepayinUSD, 0, _amountToWithdrawWithDecimal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
+         bool testAfterBurnImpact = _testImpact(0, amountToRepayinUSD, 0, _amountToWithdrawWithDecimal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
         if(!testAfterBurnImpact) revert ImpactFailed();
         
@@ -533,7 +559,6 @@ contract Vault is ReentrancyGuard, Ownable {
     * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
      */
     function _testImpact(
-        address _address, 
         uint256 _zUsdMintAmount, 
         uint256 _zUsdBurnAmount,
         uint256  _depositAmount, 
@@ -542,41 +567,38 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 zCFAUSDRate, 
         uint256 zZARUSDRate
     ) internal virtual returns(bool){
-        /**
-        * Initialize test variables
-         */
-        uint256 collateralMovement;
-        uint256 netMintMovement;
+        TestImpact memory testImpact;
+
         /**
         * Adjuested Net Mint is initialized from netMintUser[msg.sender]
          */
-        uint256 adjustedNetMint = netMintUser[_address];
+        testImpact.adjustedNetMint = netMintUser[msg.sender];
         /**
         * Global Net Mint is initialized from netMintGlobal
          */
-        uint256 globalNetMint = netMintGlobal;
+        testImpact.globalNetMint = netMintGlobal;
 
-        uint256 collaterizationRatio = COLLATERIZATION_RATIO_THRESHOLD;
+        testImpact.collaterizationRatio = COLLATERIZATION_RATIO_THRESHOLD;
 
-        uint256 userDebt = User[_address].userDebtOutstanding;
+        testImpact.userDebt = User[msg.sender].userDebtOutstanding;
 
-        collateralMovement = _depositAmount - _withdrawalAmount + userDebt;
+        testImpact.collateralMovement = _depositAmount - _withdrawalAmount + testImpact.userDebt;
 
-        netMintMovement = _zUsdMintAmount - (netMintUser[_address] * (_zUsdBurnAmount / userDebt));
+        testImpact.netMintMovement = _zUsdMintAmount - (netMintUser[msg.sender] * (_zUsdBurnAmount / testImpact.userDebt));
 
-        adjustedNetMint += netMintMovement;
-        globalNetMint += netMintMovement;
+        testImpact.adjustedNetMint += testImpact.netMintMovement;
+        testImpact.globalNetMint += testImpact.netMintMovement;
 
-        uint256 globalDebt = (IERC20(zUSD).totalSupply() + 
+        testImpact.globalDebt = (IERC20(zUSD).totalSupply() + 
             IERC20(zNGN).totalSupply() / zNGNUSDRate + 
             IERC20(zCFA).totalSupply() / zCFAUSDRate + 
             IERC20(zZAR).totalSupply() / zZARUSDRate);
 
-        uint256 adjustedDebt = (globalDebt + _zUsdMintAmount - _zUsdBurnAmount) * adjustedNetMint/globalNetMint;
+        testImpact.adjustedDebt = (testImpact.globalDebt + _zUsdMintAmount - _zUsdBurnAmount) * testImpact.adjustedNetMint/testImpact.globalNetMint;
         
-        uint256 collateralRatioMultipliedByDebt = adjustedDebt * collaterizationRatio / 10**3;
+        uint256 collateralRatioMultipliedByDebt = testImpact.adjustedDebt * testImpact.collaterizationRatio / 10**3;
 
-        require(collateralMovement >= collateralRatioMultipliedByDebt, "False");
+        require(testImpact.collateralMovement >= collateralRatioMultipliedByDebt, "False");
 
         return true;
     }
