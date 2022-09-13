@@ -50,12 +50,6 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     {
         _mint(_userAddress, _amount);
 
-        //increment global mint value
-        globalMint[address(this)] += _amount;
-
-        //increment user mint value
-        userMint[_userAddress][address(this)] += _amount;
-
         return true;
     }
 
@@ -65,12 +59,6 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
         returns (bool)
     {
         _burn(_userAddress, _amount);
-
-        //remove burn amount from global mint
-        globalMint[address(this)] -= _amount;
-
-        //remove burn amount from user mint
-        userMint[_userAddress][address(this)] -= _amount;
 
         return true;
     }

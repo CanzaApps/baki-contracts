@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/ZTokenInterface.sol";
+import "abdk-libraries-solidity/ABDKMath64x64.sol";
 
 error TransferFailed();
 error MintFailed();
@@ -23,7 +24,6 @@ contract Vault is ReentrancyGuard, Ownable {
     address private zZAR;
     /**
      * exchange rates of 1 USD to zTokens
-     * Currency on the right is 1 value i.e the first currency(left) is compared to 1 value of the last (right) currency
      * TODO These should be fetched from an Oracle
      */
 
@@ -67,13 +67,26 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     /**
+    * Swap struct
+    */ 
+    struct SwapStruct {
+        uint256 mintAmount;
+        uint256 amountToBeSwapped;
+        uint256 swapFee;
+        uint256 swapFeeInUsd;
+        uint256 globalMintersFeePerTransaction;
+        uint256 treasuryFeePerTransaction;
+    }
+
+    /**
      * userAddress => IUser
      */
+     uint256 private constant MULTIPLIER = 1e6;
 
-
-    uint256 public COLLATERIZATION_RATIO_THRESHOLD = 1.5 * 10**3;
+    uint256 public COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
 
     uint256 public LIQUIDATION_REWARD = 10;
+
     /**
      * Net User Mint
      * Maps user address => cumulative mint value
@@ -106,8 +119,8 @@ contract Vault is ReentrancyGuard, Ownable {
     address[] public mintersAddresses;
 
     event Deposit(address indexed _account, address indexed _token, uint256 _depositAmount, uint256 _mintAmount);
-    event Swap(address indexed _account, address indexed _zTokenFrom, address indexed _zTokenTo, uint256 _amount, uint256 _mintAmount);
-    event Withdraw(address indexed _account, address indexed _token, uint256 _amountToRepay, uint256 _amountToWithdraw);
+    event Swap(address indexed _account, address indexed _zTokenFrom, address indexed _zTokenTo);
+    event Withdraw(address indexed _account, address indexed _token,  uint256 indexed _amountToWithdraw);
     event Liquidate(address indexed _account, uint256 indexed debt, uint256 indexed rewards, address liquidator);
     /** 
     @notice Allows a user to deposit cUSD collateral in exchange for some amount of zUSD.
@@ -187,8 +200,12 @@ contract Vault is ReentrancyGuard, Ownable {
         address _zTokenFrom,
         address _zTokenTo,
         uint256 _zTokenFromUSDRate,
-        uint256 _zTokenToUSDRate
+        uint256 _zTokenToUSDRate,
+        uint256 zNGNUSDRate, 
+        uint256 zCFAUSDRate, 
+        uint256 zZARUSDRate
     ) external nonReentrant {
+        SwapStruct memory swapStruct;
 
         uint256 _amountWithDecimal = _getDecimal(_amount);
 
@@ -196,39 +213,42 @@ contract Vault is ReentrancyGuard, Ownable {
             IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amountWithDecimal,
             "Insufficient balance"
         );
-        uint256 mintAmount;
-        uint256 amountToBeSwapped;
-        uint256 swapFee = (3 * _amountWithDecimal) / 10;
-        uint256 swapFeeInUsd = swapFee * _zTokenFromUSDRate;
+    
+        swapStruct.swapFee = 3 * _amountWithDecimal / 1000;
+        swapStruct.swapFeeInUsd = swapStruct.swapFee / _zTokenFromUSDRate;
 
         /**
          * Get the USD values of involved zTokens 
          * Handle minting of new tokens and burning of user tokens
          */
-        amountToBeSwapped = _amountWithDecimal - swapFee;
-        mintAmount = amountToBeSwapped * (_zTokenFromUSDRate/_zTokenToUSDRate);
+        swapStruct.amountToBeSwapped = _amountWithDecimal - swapStruct.swapFee;
+        swapStruct.mintAmount = swapStruct.amountToBeSwapped * (_zTokenToUSDRate * MULTIPLIER / _zTokenFromUSDRate);
+        swapStruct.mintAmount = swapStruct.mintAmount / MULTIPLIER;
 
         bool burnSuccess = _burn(_zTokenFrom, msg.sender, _amountWithDecimal);
 
         if(!burnSuccess) revert BurnFailed();
 
-        bool mintSuccess = _mint(_zTokenTo, msg.sender, mintAmount);
+        bool mintSuccess = _mint(_zTokenTo, msg.sender, swapStruct.mintAmount);
 
         if(!mintSuccess) revert MintFailed();
 
         /**
         * Update User Outstanding Debt since we minted new tokens
-        * @TODO - Handle this from the frontend i.e call _updateUserDebtOutstanding after each swap
+        * Call _updateUserDebtOutstanding after each swap
          */
-       
+       _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
+
         /**
         * Handle swap fees and rewards
         */
-        uint256 globalMintersFeePerTransaction = (3 * swapFeeInUsd) / 4;
-        globalMintersFee += globalMintersFeePerTransaction;
+        swapStruct.globalMintersFeePerTransaction = (3 * swapStruct.swapFeeInUsd) / 4;
 
-        uint256 treasuryFeePerTransaction = (1 * swapFeeInUsd) / 4;
-        treasuryFee += treasuryFeePerTransaction;
+        globalMintersFee += swapStruct.globalMintersFeePerTransaction;
+
+        swapStruct.treasuryFeePerTransaction = (1 * swapStruct.swapFeeInUsd) / 4;
+
+        treasuryFee += swapStruct.treasuryFeePerTransaction;
 
         /**
         * Send the treasury amount from User to a treasury wallet
@@ -236,16 +256,18 @@ contract Vault is ReentrancyGuard, Ownable {
         IERC20(zUSD).transferFrom(
             msg.sender,
             treasuryWallet,
-            treasuryFeePerTransaction
+            swapStruct.treasuryFeePerTransaction
         );
 
         /**
         * @TODO - Send the remaining fee to all minters
          */
         for (uint i = 0; i < mintersAddresses.length; i++){
-            userAccruedFeeBalance[mintersAddresses[i]] = (netMintUser[mintersAddresses[i]]/netMintGlobal) * globalMintersFeePerTransaction;
+            userAccruedFeeBalance[mintersAddresses[i]] = (netMintUser[mintersAddresses[i]] * MULTIPLIER / netMintGlobal) * swapStruct.globalMintersFeePerTransaction;
+
+            userAccruedFeeBalance[mintersAddresses[i]] = userAccruedFeeBalance[mintersAddresses[i]] / MULTIPLIER;
         }
-        emit Swap(msg.sender, _zTokenFrom, _zTokenTo, _amount, mintAmount);
+        emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
     }
 
     /** 
@@ -268,7 +290,6 @@ contract Vault is ReentrancyGuard, Ownable {
 
       require(amountToRepayinUSD >= _amountToWithdrawWithDecimal, "Insufficient Collateral");
 
-    
     /**
     * Get user debt outstanding
     * Check the impact of the amount to repay
@@ -304,7 +325,7 @@ contract Vault is ReentrancyGuard, Ownable {
         if(!testAfterBurnImpact) revert ImpactFailed();
         
         if(netMintGlobal > 0){
-            User[msg.sender].collaterizationRatio =  10**3 * (User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding );
+            User[msg.sender].collaterizationRatio =  1e3 * (User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding );
         }
         /** 
         * @TODO - Implement actual transfer of cUSD _amountToWithdrawWithDecimal value
@@ -316,7 +337,7 @@ contract Vault is ReentrancyGuard, Ownable {
 
         if(!transferSuccess) revert TransferFailed();
     // }
-        emit Withdraw(msg.sender, _zToken, _amountToRepay, _amountToWithdraw);
+        emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
     }
 
     function liquidate(
@@ -333,7 +354,7 @@ contract Vault is ReentrancyGuard, Ownable {
         /**
         * Update user's collateral ratio
          */
-        User[_user].collaterizationRatio = (10**3 * User[_user].userCollateralBalance / User[_user].userDebtOutstanding);
+        User[_user].collaterizationRatio = (1e3 * User[_user].userCollateralBalance / User[_user].userDebtOutstanding);
 
         /**
         * User collateral ratio must be lower than healthy threshold for liquidation to occur
@@ -509,7 +530,7 @@ contract Vault is ReentrancyGuard, Ownable {
     function _getDecimal(uint256 amount) internal virtual returns (uint256) {
         uint256 decimalAmount;
 
-        decimalAmount = amount * 10 ** 18;
+        decimalAmount = amount * 1e18;
 
         return decimalAmount;
     }
@@ -596,11 +617,12 @@ contract Vault is ReentrancyGuard, Ownable {
 
         testImpact.adjustedDebt = (testImpact.globalDebt + _zUsdMintAmount - _zUsdBurnAmount) * testImpact.adjustedNetMint/testImpact.globalNetMint;
         
-        uint256 collateralRatioMultipliedByDebt = testImpact.adjustedDebt * testImpact.collaterizationRatio / 10**3;
+        uint256 collateralRatioMultipliedByDebt = testImpact.adjustedDebt * testImpact.collaterizationRatio / 1e3;
 
         require(testImpact.collateralMovement >= collateralRatioMultipliedByDebt, "False");
 
         return true;
     }
 }
+
 
