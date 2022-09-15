@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+/**
+* NOTE 
+* Always do additions first
+* Check if the substracting value is greater than or less than the added values i.e check for a negative result
+ */
+
+pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/ZTokenInterface.sol";
-import "abdk-libraries-solidity/ABDKMath64x64.sol";
+import "./libraries/WadRayMath.sol";
 
 error TransferFailed();
 error MintFailed();
@@ -34,22 +40,6 @@ contract Vault is ReentrancyGuard, Ownable {
      * Collaterization ratio (in multiple of a 1000 to deal with float point)
      * Maps user address => value
      */
-    struct IUser {
-        uint256 userCollateralBalance;
-        uint256 userDebtOutstanding;
-        uint256 collaterizationRatio;
-    }
-
-    mapping(address => IUser) private User;
-
-     /**
-    * Exchange rates struct
-    */
-    struct ExRates {
-        uint256 zNGNUSDRate;
-        uint256 zCFAUSDRate; 
-        uint256 zZARUSDRate;
-    }
 
     /**
     * Impact struct
@@ -92,6 +82,10 @@ contract Vault is ReentrancyGuard, Ownable {
      * Maps user address => cumulative mint value
      */
     mapping(address => uint256) private netMintUser;
+
+    mapping(address => uint256) private grossMintUser;
+
+    mapping(address => uint256) private userCollateralBalance;
 
     /**
      * Net Global Mint
@@ -148,27 +142,16 @@ contract Vault is ReentrancyGuard, Ownable {
 
         if(!transferSuccess) revert TransferFailed();
 
-        User[msg.sender].userCollateralBalance += _depositAmountWithDecimal;
+        userCollateralBalance[msg.sender] += _depositAmountWithDecimal;
 
         /**
         * if this is user's first mint, add to minters list
         */
-     if (netMintUser[msg.sender] == 0) {
-        require(_depositAmountWithDecimal >= _mintAmountWithDecimal, "Insufficient collateral");
+     if (grossMintUser[msg.sender] == 0) {
 
         mintersAddresses.push(msg.sender);
 
      }
-        /**
-        * Update user outstanding debt before test impact
-        * Check impact before mint
-        */
-
-        _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
-
-        bool testBeforeMintImpact = _testImpact(_mintAmountWithDecimal, 0, _depositAmountWithDecimal, 0, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
-
-        if(!testBeforeMintImpact) revert ImpactFailed();
 
         bool mintSuccess = _mint(zUSD, msg.sender, _mintAmountWithDecimal);
 
@@ -176,18 +159,15 @@ contract Vault is ReentrancyGuard, Ownable {
 
         netMintUser[msg.sender] += _mintAmountWithDecimal;
 
+        grossMintUser[msg.sender] += _mintAmountWithDecimal;
+
         netMintGlobal += _mintAmountWithDecimal;
 
         /**
         * Update user outstanding debt after successful mint
         * Check the impact of the mint
          */
-
-        _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
-
-        bool testAfterMintImpact = _testImpact(_mintAmountWithDecimal, 0, _depositAmountWithDecimal, 0, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
-
-        if(!testAfterMintImpact) revert ImpactFailed();
+        _testImpact(_mintAmountWithDecimal, 0, _depositAmountWithDecimal, 0, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
   
         emit Deposit(msg.sender, collateral, _depositAmount, _mintAmount);
    }
@@ -233,11 +213,7 @@ contract Vault is ReentrancyGuard, Ownable {
 
         if(!mintSuccess) revert MintFailed();
 
-        /**
-        * Update User Outstanding Debt since we minted new tokens
-        * Call _updateUserDebtOutstanding after each swap
-         */
-       _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
+         _testImpact(swapStruct.mintAmount, _amountWithDecimal, 0, 0, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
         /**
         * Handle swap fees and rewards
@@ -266,6 +242,8 @@ contract Vault is ReentrancyGuard, Ownable {
             userAccruedFeeBalance[mintersAddresses[i]] = (netMintUser[mintersAddresses[i]] * MULTIPLIER / netMintGlobal) * swapStruct.globalMintersFeePerTransaction;
 
             userAccruedFeeBalance[mintersAddresses[i]] = userAccruedFeeBalance[mintersAddresses[i]] / MULTIPLIER;
+
+            
         }
         emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
     }
@@ -288,22 +266,16 @@ contract Vault is ReentrancyGuard, Ownable {
     
       uint256 amountToRepayinUSD = _repay(_amountToRepayWithDecimal, _zToken,_zTokenUSDRate);
 
+      uint256 userDebt;
+
       require(amountToRepayinUSD >= _amountToWithdrawWithDecimal, "Insufficient Collateral");
-
-    /**
-    * Get user debt outstanding
-    * Check the impact of the amount to repay
-     */
-    _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
-
-        bool testBeforeBurnImpact = _testImpact(0, amountToRepayinUSD, 0, _amountToWithdrawWithDecimal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
-
-        if(!testBeforeBurnImpact) revert ImpactFailed();
 
       /**
       * Substract withdraw from current net mint value and assign new mint value
       */
-      uint256 amountToSubtract = (netMintUser[msg.sender] * amountToRepayinUSD/User[msg.sender].userDebtOutstanding);
+      userDebt = _updateUserDebtOutstanding(netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
+
+      uint256 amountToSubtract = (netMintUser[msg.sender] * amountToRepayinUSD / userDebt);
 
       netMintUser[msg.sender] -= amountToSubtract;
 
@@ -318,25 +290,20 @@ contract Vault is ReentrancyGuard, Ownable {
         * Update user debt outstanding after burn and chnges to net mint
         * Test impact after burn
          */
-        _updateUserDebtOutstanding(msg.sender, netMintUser[msg.sender], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
-
-         bool testAfterBurnImpact = _testImpact(0, amountToRepayinUSD, 0, _amountToWithdrawWithDecimal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
-
-        if(!testAfterBurnImpact) revert ImpactFailed();
+      
+        _testImpact(0, amountToRepayinUSD, 0, _amountToWithdrawWithDecimal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
         
-        if(netMintGlobal > 0){
-            User[msg.sender].collaterizationRatio =  1e3 * (User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding );
-        }
         /** 
         * @TODO - Implement actual transfer of cUSD _amountToWithdrawWithDecimal value
         */
+
         bool transferSuccess = IERC20(collateral).transfer(
             msg.sender,
             _amountToWithdrawWithDecimal
         );
 
         if(!transferSuccess) revert TransferFailed();
-    // }
+    
         emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
     }
 
@@ -346,44 +313,63 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 zCFAUSDRate, 
         uint256 zZARUSDRate
     ) external nonReentrant payable {
+
+        uint256 userDebt;
+        uint256 userCollateralRatio;
+
         /**
         * Update the user's debt balance with latest price feeds
          */
-        _updateUserDebtOutstanding(_user, netMintUser[_user], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
+        userDebt = _updateUserDebtOutstanding(netMintUser[_user], netMintGlobal, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
         /**
+        * Ensure user has debt before progressing
         * Update user's collateral ratio
          */
-        User[_user].collaterizationRatio = (1e3 * User[_user].userCollateralBalance / User[_user].userDebtOutstanding);
+        require(userDebt > 0, "User has no debt");
 
+        userCollateralRatio = 1e3 * WadRayMath.wadDiv(userCollateralBalance[_user], userDebt);
+
+        userCollateralRatio = userCollateralRatio / MULTIPLIER;
         /**
         * User collateral ratio must be lower than healthy threshold for liquidation to occur
          */
-        require(User[_user].collaterizationRatio < COLLATERIZATION_RATIO_THRESHOLD, "User has a healthy collateral ratio");
+        require(userCollateralRatio < COLLATERIZATION_RATIO_THRESHOLD, "User has a healthy collateral ratio");
 
         /**
         * check if the liquidator has sufficient zUSD to repay the debt
         * burn the zUSD
         */
-        require(IERC20(zUSD).balanceOf(msg.sender) >= User[_user].userDebtOutstanding, "Liquidator does not have sufficient zUSD to repay debt");
+        require(IERC20(zUSD).balanceOf(msg.sender) >= userDebt, "Liquidator does not have sufficient zUSD to repay debt");
 
-        bool burnSuccess = _burn(zUSD, msg.sender, User[_user].userDebtOutstanding);
+        bool burnSuccess = _burn(zUSD, msg.sender, userDebt);
 
         if(!burnSuccess) revert BurnFailed();
+
+        _testImpact(0, userDebt, 0, 0, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
         /**
         * Get reward fee
         * Send the equivalent of debt as collateral and also a 10% fee to the liquidator
          */
-        uint256 rewardFee = (User[_user].userDebtOutstanding * LIQUIDATION_REWARD) / 100;
+        uint256 rewardFee = (userDebt * LIQUIDATION_REWARD) / 100;
 
-        uint256 totalRewards = User[_user].userDebtOutstanding + rewardFee;
+        uint256 totalRewards = userDebt + rewardFee;
 
-        bool transferSuccess = IERC20(collateral).transferFrom(msg.sender, address(this), totalRewards);
+        bool transferSuccess = IERC20(collateral).transfer(msg.sender, totalRewards);
 
         if(!transferSuccess) revert TransferFailed();
 
-        emit Liquidate(_user, User[_user].userDebtOutstanding, totalRewards, msg.sender);
+        netMintGlobal = netMintGlobal - netMintUser[msg.sender];
+
+        netMintUser[_user] = 0;
+
+        /**
+        * Possible overflow
+         */
+        userCollateralBalance[_user] = userCollateralBalance[_user] - totalRewards;
+
+        emit Liquidate(_user, userDebt, totalRewards, msg.sender);
 
         /**
         * @TODO - netMintGlobal = netMintGlobal - netMintUser, Update users collateral balance by substracting the totalRewards, netMintUser = 0, userDebtOutstanding = 0
@@ -419,22 +405,12 @@ contract Vault is ReentrancyGuard, Ownable {
         return netMintGlobal;
     }
 
-    /**
-     * Get User struct values
-     */
-    function getCollaterizationRatio() external view returns (uint256) {
-        return User[msg.sender].collaterizationRatio;
-    }
-
-/**
-* Allow values such as collateral balance and debt outstanding to be updated without propping up wallet(metamask) interaction. This will enable us display these values in realtime to the users.
- */
-    function getUserCollateralBalance() external view returns (uint256) {
-        return User[msg.sender].userCollateralBalance;
-    }
-
-    function getUserDebtOutstanding() external view returns (uint256) {
-        return User[msg.sender].userDebtOutstanding;
+    function getUserCollateralBalance() 
+        external
+        view 
+        returns (uint256)
+    {
+        return userCollateralBalance[msg.sender];
     }
 
     /**
@@ -539,27 +515,33 @@ contract Vault is ReentrancyGuard, Ownable {
     /** 
     * Get User Outstanding Debt
     */
-    function _updateUserDebtOutstanding(
-        address _address,
+   function _updateUserDebtOutstanding(
         uint256 _netMintUserzUSDValue, 
         uint256 _netMintGlobalzUSDValue, 
         uint256 zNGNUSDRate, 
         uint256 zCFAUSDRate, 
         uint256 zZARUSDRate
-    ) internal virtual returns(uint256){
+    ) internal view returns (uint256){
+        require(_netMintGlobalzUSDValue > 0, "Global zUSD mint too low, underflow may occur");
 
-        if(_netMintGlobalzUSDValue > 0 && _netMintUserzUSDValue > 0 ){
-            User[_address].userDebtOutstanding = _netMintUserzUSDValue/_netMintGlobalzUSDValue * (IERC20(zUSD).totalSupply() + 
-            IERC20(zNGN).totalSupply() / zNGNUSDRate + 
-            IERC20(zCFA).totalSupply() / zCFAUSDRate + 
-            IERC20(zZAR).totalSupply() / zZARUSDRate);
-            
-        }else{
+        uint256 userDebtOutstanding;
+        uint256 globalDebt;
+        uint256 mintRatio;
 
-            User[_address].userDebtOutstanding = 0;
-        }
+        globalDebt = IERC20(zUSD).totalSupply() + 
+            WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), zNGNUSDRate) + 
+            WadRayMath.wadDiv(IERC20(zCFA).totalSupply(), zCFAUSDRate) + 
+            WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), zZARUSDRate);
+
+        globalDebt = globalDebt / MULTIPLIER;
+
+             mintRatio = WadRayMath.wadDiv(_netMintUserzUSDValue, _netMintGlobalzUSDValue);
+
+            userDebtOutstanding = mintRatio * globalDebt;
+
+            userDebtOutstanding = userDebtOutstanding / MULTIPLIER;
         
-        return User[_address].userDebtOutstanding;
+        return userDebtOutstanding;
     }
 
     /**
@@ -579,7 +561,7 @@ contract Vault is ReentrancyGuard, Ownable {
     /**
     * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
      */
-    function _testImpact(
+     function _testImpact(
         uint256 _zUsdMintAmount, 
         uint256 _zUsdBurnAmount,
         uint256  _depositAmount, 
@@ -587,9 +569,11 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 zNGNUSDRate, 
         uint256 zCFAUSDRate, 
         uint256 zZARUSDRate
-    ) internal virtual returns(bool){
+    ) internal view returns(bool){
+      require(netMintGlobal > 0, "Global zUSD mint too low, underflow may occur");
         TestImpact memory testImpact;
 
+        uint256 netMintMovement;
         /**
         * Adjuested Net Mint is initialized from netMintUser[msg.sender]
          */
@@ -601,25 +585,69 @@ contract Vault is ReentrancyGuard, Ownable {
 
         testImpact.collaterizationRatio = COLLATERIZATION_RATIO_THRESHOLD;
 
-        testImpact.userDebt = User[msg.sender].userDebtOutstanding;
+        testImpact.userDebt = _updateUserDebtOutstanding(testImpact.adjustedNetMint, testImpact.globalNetMint, zNGNUSDRate, zCFAUSDRate, zZARUSDRate);
 
-        testImpact.collateralMovement = _depositAmount - _withdrawalAmount + testImpact.userDebt;
+        testImpact.collateralMovement = _withdrawalAmount + testImpact.userDebt;
 
-        testImpact.netMintMovement = _zUsdMintAmount - (netMintUser[msg.sender] * (_zUsdBurnAmount / testImpact.userDebt));
+        /**
+        * For collateral movement, we aren't concerned about it being a negative or positive integer, we only want to avoid overflow errors with a negative integer
+         */
+        if (testImpact.collateralMovement < _depositAmount) {
+            testImpact.collateralMovement = _depositAmount - testImpact.collateralMovement;
+        } else {
+            testImpact.collateralMovement = testImpact.collateralMovement - _depositAmount;
+        }
 
-        testImpact.adjustedNetMint += testImpact.netMintMovement;
-        testImpact.globalNetMint += testImpact.netMintMovement;
+        if (testImpact.userDebt <= 0) {
 
-        testImpact.globalDebt = (IERC20(zUSD).totalSupply() + 
-            IERC20(zNGN).totalSupply() / zNGNUSDRate + 
-            IERC20(zCFA).totalSupply() / zCFAUSDRate + 
-            IERC20(zZAR).totalSupply() / zZARUSDRate);
+            testImpact.netMintMovement = 0;
 
-        testImpact.adjustedDebt = (testImpact.globalDebt + _zUsdMintAmount - _zUsdBurnAmount) * testImpact.adjustedNetMint/testImpact.globalNetMint;
+        } else {
+
+          testImpact.netMintMovement = (netMintUser[msg.sender] * WadRayMath.wadDiv(_zUsdBurnAmount, testImpact.userDebt));
+
+          testImpact.netMintMovement = testImpact.netMintMovement / MULTIPLIER;
+
+           netMintMovement = testImpact.netMintMovement;
+        }
+
+        /**
+        * For net mint movement, we actually are concerned about the sign  because we have to it add to or substract from  adjusted net mint or global net mint based on its outcome
+         */
+        if (testImpact.netMintMovement < _zUsdMintAmount) {
+            testImpact.netMintMovement = _zUsdMintAmount - testImpact.netMintMovement;
+
+            testImpact.adjustedNetMint += testImpact.netMintMovement;
+            testImpact.globalNetMint += testImpact.netMintMovement;
+        } else {
+            testImpact.netMintMovement = testImpact.netMintMovement - _zUsdMintAmount;
+
+            testImpact.adjustedNetMint -= testImpact.netMintMovement;
+            testImpact.globalNetMint -= testImpact.netMintMovement;
+        }
+
+        testImpact.globalDebt = IERC20(zUSD).totalSupply() + 
+            WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), zNGNUSDRate) + 
+            WadRayMath.wadDiv(IERC20(zCFA).totalSupply(), zCFAUSDRate) + 
+            WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), zZARUSDRate);
+
+        testImpact.globalDebt = testImpact.globalDebt / MULTIPLIER;
+
+        /**
+        * Check if mint is greater than or less than burn and substract accordingly
+         */
+
+        if (_zUsdMintAmount > _zUsdBurnAmount) {
+            testImpact.adjustedDebt = (testImpact.globalDebt + _zUsdMintAmount - _zUsdBurnAmount) * WadRayMath.wadDiv(testImpact.adjustedNetMint, testImpact.globalNetMint);
+        } else {
+            testImpact.adjustedDebt = (testImpact.globalDebt + _zUsdBurnAmount - _zUsdMintAmount) * WadRayMath.wadDiv(testImpact.adjustedNetMint, testImpact.globalNetMint);
+        }
+
+        testImpact.adjustedDebt = testImpact.adjustedDebt / MULTIPLIER;
         
         uint256 collateralRatioMultipliedByDebt = testImpact.adjustedDebt * testImpact.collaterizationRatio / 1e3;
 
-        require(testImpact.collateralMovement >= collateralRatioMultipliedByDebt, "False");
+        require(testImpact.collateralMovement >= collateralRatioMultipliedByDebt, "User does not have sufficient collateral to cover this transaction");
 
         return true;
     }
