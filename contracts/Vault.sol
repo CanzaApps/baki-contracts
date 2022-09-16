@@ -63,7 +63,9 @@ contract Vault is ReentrancyGuard, Ownable {
     * store 25% swap fee seaparately
     * user => uint256
      */
-    mapping(address => uint256) private userAccruedFeeBalance;
+    mapping(address => uint256) public userAccruedFeeBalance;
+
+    mapping(address => uint256) private mintersRewardPerTransaction;
 
     uint256 public globalMintersFee;
 
@@ -96,7 +98,7 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 zNGNUSDRate, 
         uint256 zCFAUSDRate, 
         uint256 zZARUSDRate
-    ) external nonReentrant payable {
+    ) external nonReentrant {
         
         uint256 _depositAmountWithDecimal = _getDecimal(_depositAmount);
         uint256 _mintAmountWithDecimal = _getDecimal(_mintAmount);
@@ -217,9 +219,9 @@ contract Vault is ReentrancyGuard, Ownable {
         * @TODO - Send the remaining fee to all minters
          */
         for (uint i = 0; i < mintersAddresses.length; i++){
-            userAccruedFeeBalance[mintersAddresses[i]] = (netMintUser[mintersAddresses[i]] * MULTIPLIER / netMintGlobal) * globalMintersFeePerTransaction;
+            mintersRewardPerTransaction[mintersAddresses[i]] = (netMintUser[mintersAddresses[i]] * MULTIPLIER / netMintGlobal) * globalMintersFeePerTransaction;
 
-            userAccruedFeeBalance[mintersAddresses[i]] = userAccruedFeeBalance[mintersAddresses[i]] / MULTIPLIER;
+            userAccruedFeeBalance[mintersAddresses[i]] += mintersRewardPerTransaction[mintersAddresses[i]] / MULTIPLIER;
         }
         emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
     }
@@ -235,7 +237,7 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 zNGNUSDRate, 
         uint256 zCFAUSDRate, 
         uint256 zZARUSDRate
-    ) external nonReentrant payable {
+    ) external nonReentrant {
 
       uint256 _amountToRepayWithDecimal = _getDecimal(_amountToRepay);
       uint256 _amountToWithdrawWithDecimal = _getDecimal(_amountToWithdraw);
@@ -290,7 +292,7 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 zNGNUSDRate, 
         uint256 zCFAUSDRate, 
         uint256 zZARUSDRate
-    ) external nonReentrant payable {
+    ) external nonReentrant {
 
         uint256 userDebt;
         uint256 userCollateralRatio;
@@ -357,6 +359,18 @@ contract Vault is ReentrancyGuard, Ownable {
         /**
         * @TODO - netMintGlobal = netMintGlobal - netMintUser, Update users collateral balance by substracting the totalRewards, netMintUser = 0, userDebtOutstanding = 0
          */
+    }
+
+    /**
+    * Allow minters to claim rewards/fees on swap
+     */
+    function claimFees() external nonReentrant {
+        require( userAccruedFeeBalance[msg.sender] > 0, "User has no accumulated rewards" );
+
+        bool transferSuccess = IERC20(zUSD).transfer(msg.sender, userAccruedFeeBalance[msg.sender]);
+        if(!transferSuccess) revert TransferFailed();
+
+        userAccruedFeeBalance[msg.sender] = 0;
     }
 
     /**
