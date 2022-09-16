@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -22,7 +22,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     constructor(string memory name_, string memory symbol_) {
         _name = name_;
         _symbol = symbol_;
-        _mint(msg.sender, 1);
+        //_mint(msg.sender, 1000 * 10**18 );
     }
 
     //Global mint
@@ -31,6 +31,9 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     //User mint
     mapping(address => mapping(address => uint256)) private userMint;
 
+    /**
+    * Implement an onlyVault address
+     */
     //  OnlyVault modifier
     // modifier onlyVault {
     //   require(msg.sender == vault);
@@ -46,12 +49,6 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
         returns (bool)
     {
         _mint(_userAddress, _amount);
-
-        //increment global mint value
-        globalMint[address(this)] += _amount;
-
-        //increment user mint value
-        userMint[_userAddress][address(this)] += _amount;
 
         return true;
     }
