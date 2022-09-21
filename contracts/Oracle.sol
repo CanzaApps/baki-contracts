@@ -13,6 +13,7 @@ contract PriceOracle is ChainlinkClient, ConfirmedOwner {
     uint256 public NGNUSD;
     uint256 public CFAUSD;
     uint256 public ZARUSD;
+    uint256 public XRATE;
     string public baseURL;
 
     event NewQuery(string description);
@@ -111,7 +112,7 @@ contract PriceOracle is ChainlinkClient, ConfirmedOwner {
         Chainlink.Request memory req = buildChainlinkRequest(
             jobId,
             address(this),
-            this._fulfillCFAUSD.selector
+            this._fulfillZARUSD.selector
         );
 
         // Set the URL to perform the GET request on
@@ -137,6 +138,40 @@ contract PriceOracle is ChainlinkClient, ConfirmedOwner {
         ZARUSD = result;
     }
 
+    // ############################################################################# XRATES #############################################################################
+    function _submitXRATE(string memory url)
+        internal
+        returns (bytes32 requestId)
+    {
+        Chainlink.Request memory req = buildChainlinkRequest(
+            jobId,
+            address(this),
+            this._fulfillXRATE.selector
+        );
+
+        // Set the URL to perform the GET request on
+        req.add("get", url);
+        req.add("path", "data"); // Chainlink nodes 1.0.0 and later support this format
+
+        // Multiply the result by 1000000000000000000 to remove decimals
+        int256 timesAmount = 10**18;
+        req.addInt("times", timesAmount);
+
+        // Sends the request
+        return sendChainlinkRequest(req, fee);
+    }
+
+    /**
+     * Receive the response in the form of uint256
+     */
+    function _fulfillXRATE(bytes32 _requestId, uint256 result)
+        public
+        recordChainlinkFulfillment(_requestId)
+    {
+        emit ResultObtained(_requestId, result);
+        XRATE = result;
+    }
+
     // create a request
     function createRequest(string memory _target, string memory base) external {
         string memory pair = string(abi.encodePacked(_target, "/", base));
@@ -157,6 +192,8 @@ contract PriceOracle is ChainlinkClient, ConfirmedOwner {
             keccak256(abi.encodePacked("ZAR/USD"))
         ) {
             _submitZARUSD(url);
+        } else {
+            _submitXRATE(url);
         }
     }
 
