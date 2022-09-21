@@ -31,6 +31,8 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     //User mint
     mapping(address => mapping(address => uint256)) private userMint;
 
+    address vault;
+
     /**
     * Implement an onlyVault address
      */
@@ -44,28 +46,34 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
      * @dev these can only be called by the Vault contract
      */
     function mint(address _userAddress, uint256 _amount)
-        public
+        external
         override
         returns (bool)
     {
+    require(msg.sender == vault, "You do not have permission");
         _mint(_userAddress, _amount);
 
         return true;
     }
 
     function burn(address _userAddress, uint256 _amount)
-        public
+        external
         override
         returns (bool)
     {
+     require(msg.sender == vault, "You do not have permission");
         _burn(_userAddress, _amount);
 
         return true;
     }
 
-    // function vaultAddress() public view returns(address) {
-    //     return vault;
-    // }
+    function addVaultAddress(address _address) external onlyOwner {
+        vault = _address;
+    }
+
+    function vaultAddress() public view returns(address) {
+        return vault;
+    }
 
     /**
      * @dev Returns the minted token value for a particular user
