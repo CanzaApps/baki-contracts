@@ -301,6 +301,8 @@ contract Vault is ReentrancyGuard, Ownable {
 
         netMintUser[msg.sender] -= amountToSubtract;
 
+        netMintGlobal -= amountToSubtract;
+
         bool burnSuccess = _burn(zUSD, msg.sender, amountToRepayinUSD);
 
         if (!burnSuccess) revert BurnFailed();
@@ -633,7 +635,7 @@ contract Vault is ReentrancyGuard, Ownable {
         } else if (_address == zZAR) {
             zTokenUSDRate = ZARUSD;
         } else if (_address == zUSD) {
-            zTokenUSDRate == USD;
+            zTokenUSDRate = USD;
         }
 
         return zTokenUSDRate;
