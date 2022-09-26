@@ -1,426 +1,565 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+/**
+ * NOTE
+ * Always do additions first
+ * Check if the substracting value is greater than or less than the added values i.e check for a negative result
+ */
+
+pragma solidity 0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "./interfaces/ZTokenInterface.sol";
+import "./libraries/WadRayMath.sol";
 
+error TransferFailed();
+error MintFailed();
+error BurnFailed();
+error ImpactFailed();
 
-
-/** 
-* @dev Interface of the zTokens to be used by Baki
-*/
-interface ZTokenInterface {
-    /**
-    * @dev Amount of zTokens to be minted for a user
-    * requires onlyVault modifier
-    */
-    function mint(address _address, uint256 _amount) external returns(bool);
-
-    /**
-    * @dev Amount of zTokens to be burned after swap/repay functions
-    * requires onlyVault modifier
-    */
-    function burn(address _address, uint256 _amount) external returns(bool);
-
-    /**
-    * @dev Amount of a particular zTokens minted by Vault contract for a user
-    */
-    function getUserMintValue(address _address) external returns(uint256);
-
-    /**
-    * @dev Global amount of a particular zTokens minted by Vault contract for all users
-    */
-    function getGlobalMint() external returns(uint256);
-}
-
-
-contract Vault is Ownable {
+contract Vault is ReentrancyGuard, Ownable {
     /**
      * addresses of both the collateral and ztokens
      */
     address private collateral;
     address private zUSD;
-    address private zCFA;
+    address private zXAF;
     address private zNGN;
     address private zZAR;
+
     /**
      * exchange rates of 1 USD to zTokens
-     * Currency on the right is 1 value i.e the first currency(left) is compared to 1 value of the last (right) currency
      * TODO These should be fetched from an Oracle
      */
-    uint256 private zCFAzUSDPair = 621;
-    uint256 private zNGNzUSDPair = 415;
-    uint256 private zZARzUSDPair = 16;
+    uint256 private NGNUSD;
+    uint256 private ZARUSD;
+    uint256 private XAFUSD;
+    uint256 private XRATE;
+    uint256 private USD = 1e3;
 
- 
-  
-    constructor() {
-    }
+    constructor() {}
 
-    /**
-     * Collaterization ratio (in multiple of a 1000 to deal with float point)
-     * Maps user address => value
-     */
-    struct IUser {
-        uint256 userCollateralBalance;
-        uint256 userDebtOutstanding;
-        uint256 collaterizationRatio;
-    }
-    /**
-     * userAddress => IUser
-     */
-    mapping(address => IUser) private User;
-    // mapping(address => uint256) private userCollateralBalance;
-    // mapping(address => uint256) private userDebtOutstanding;
-    // mapping(address => uint256) private collaterizationRatio
-    uint256 private collaterizationRatioValue = 1.5 * 10**3;
+    uint256 private constant MULTIPLIER = 1e6;
+
+    uint256 private constant HALF_MULTIPLIER = 1e3;
+
+    uint256 public COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
+
+    uint256 public LIQUIDATION_REWARD = 10;
+
     /**
      * Net User Mint
-     * Maps user address => zUSD address => cumulative mint value
+     * Maps user address => cumulative mint value
      */
-    mapping(address => mapping(address => uint256)) private netMintUser;
+    mapping(address => uint256) private netMintUser;
+
+    mapping(address => uint256) private grossMintUser;
+
+    mapping(address => uint256) public userCollateralBalance;
+
     /**
      * Net Global Mint
-     * Maps zUSD address => cumulative mint value for all users
      */
-    mapping(address => uint256) private netMintGlobal;
+    uint256 private netMintGlobal;
 
+    /**
+     * map users to accrued fee balance
+     * store 75% swap fee to be shared by minters
+     * store 25% swap fee seaparately
+     * user => uint256
+     */
 
-    // Build Struct to Hold Exchange rates by Address
+    mapping(address => uint256) public userAccruedFeeBalance;
 
+    mapping(address => uint256) private mintersRewardPerTransaction;
 
-    struct exchangeRatesData {
-        address zToken;
-        uint256 ExRate;
-    }
+    uint256 public globalMintersFee;
 
-    //create array of structs
+    address public treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
 
-    exchangeRatesData [] public storedExchangeRateData;
+    address public mintersWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
 
-    // Set exchange rates and addresses
+    uint256 public swapFee = WadRayMath.wadDiv(3, 1000);
 
-    mapping( address => uint256) public ExRate;
+    uint256 public globalMintersPercentOfSwapFee = WadRayMath.wadDiv(3, 4);
 
+    uint256 public treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 4);
 
-    function setexchangeRates (address _zTokenAddress, uint256 _exchangeRate) public {
+    /**
+     * Store minters addresses as a list
+     */
+    address[] public mintersAddresses;
 
-       exchangeRatesData memory storedExchangRate = exchangeRatesData(_zTokenAddress, _exchangeRate);
-       ExRate[_zTokenAddress] = _exchangeRate; 
-    }
-
-
-    //Get exchange rates based on address of contract
-
-    function getexchangeRate(address _address ) public view returns (uint256) {
-        return ExRate[_address];
-    }
+    event Deposit(
+        address indexed _account,
+        address indexed _token,
+        uint256 _depositAmount,
+        uint256 _mintAmount
+    );
+    event Swap(
+        address indexed _account,
+        address indexed _zTokenFrom,
+        address indexed _zTokenTo
+    );
+    event Withdraw(
+        address indexed _account,
+        address indexed _token,
+        uint256 indexed _amountToWithdraw
+    );
+    event Liquidate(
+        address indexed _account,
+        uint256 indexed debt,
+        uint256 indexed rewards,
+        address liquidator
+    );
 
     /** 
     @notice Allows a user to deposit cUSD collateral in exchange for some amount of zUSD.
      _depositAmount  The amount of cUSD the user sent in the transaction
      */
-    function deposit(uint256 _depositAmount, uint256 _mintAmount) public payable {
-        
-        require(IERC20(collateral).balanceOf(msg.sender) >= _depositAmount, "Insufficient balance");
-       
+    function depositAndMint(uint256 _depositAmount, uint256 _mintAmount)
+        external
+        nonReentrant
+    {
+        uint256 _depositAmountWithDecimal = _getDecimal(_depositAmount);
+        uint256 _mintAmountWithDecimal = _getDecimal(_mintAmount);
+
+        require(
+            IERC20(collateral).balanceOf(msg.sender) >=
+                _depositAmountWithDecimal,
+            "Insufficient balance"
+        );
+
         // transfer cUSD tokens from user wallet to vault contract
-        // IERC20(collateral).transferFrom(msg.sender, address(this), _amount);
-        User[msg.sender].userCollateralBalance += _depositAmount;
+        bool transferSuccess = IERC20(collateral).transferFrom(
+            msg.sender,
+            address(this),
+            _depositAmountWithDecimal
+        );
+
+        if (!transferSuccess) revert TransferFailed();
+
+        userCollateralBalance[msg.sender] += _depositAmountWithDecimal;
 
         /**
-        *  Check if Net Mint User and Net Mint Global = 0 
-        */
-     if (netMintUser[msg.sender][zUSD] == 0 && netMintGlobal[zUSD] == 0) {
-        require(_depositAmount >= _mintAmount, "Insufficient collateral");
-       /**
-        * Mint zUSD without checking 
-        */
+         * if this is user's first mint, add to minters list
+         */
+        if (grossMintUser[msg.sender] == 0) {
+            mintersAddresses.push(msg.sender);
+        }
 
-        _mint(zUSD, msg.sender, _mintAmount);
+        bool mintSuccess = _mint(zUSD, msg.sender, _mintAmountWithDecimal);
 
-        netMintUser[msg.sender][zUSD] += _mintAmount;
+        if (!mintSuccess) revert MintFailed();
 
-        netMintGlobal[zUSD] += _mintAmount;
+        netMintUser[msg.sender] += _mintAmountWithDecimal;
+        grossMintUser[msg.sender] += _mintAmountWithDecimal;
 
-        _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
+        netMintGlobal += _mintAmountWithDecimal;
 
-        User[msg.sender].collaterizationRatio = (10**3 * User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding);
-        
-     } else if (netMintUser[msg.sender][zUSD] == 0 ) {
-       /**
-        * Get User outstanding debt
-        */
-        _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
-        /** 
-        * Check collateral ratio
-        */
-        User[msg.sender].collaterizationRatio = (10**3 * User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding);
-
-
-        if (User[msg.sender].collaterizationRatio >= collaterizationRatioValue) {
-          _mint(zUSD, msg.sender, _mintAmount);
-
-            netMintUser[msg.sender][zUSD] += _mintAmount;
-
-          netMintGlobal[zUSD] += _mintAmount;
-
-          _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
-                  
-        } 
-     }
-     else {
         /**
-        * Get User outstanding debt
-        */
-        _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
-        /** 
-        * Check collateral ratio
-        */
-        User[msg.sender].collaterizationRatio = (10**3 * User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding);
+         * Update user outstanding debt after successful mint
+         * Check the impact of the mint
+         */
+        _testImpact();
 
-
-        if (User[msg.sender].collaterizationRatio >= collaterizationRatioValue) {
-          _mint(zUSD, msg.sender, _mintAmount);
-
-          netMintUser[msg.sender][zUSD] += _mintAmount;
-
-          netMintGlobal[zUSD] += _mintAmount;
-
-          _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
-              
-        } 
-     }
-   }
+        emit Deposit(msg.sender, collateral, _depositAmount, _mintAmount);
+    }
 
     /**
      * Allows a user to swap zUSD for other zTokens using their exchange rates
      */
     function swap(
         uint256 _amount,
-        address _fromzToken,
-        address _tozToken,
-        uint256 exchangeRate
-    ) public {
-        require(
-            IERC20(_fromzToken).balanceOf(msg.sender) >= _amount,
-            "Insufficient balance"
-        );
-
-    /**
-     * Allows a user to swap zUSD for other zTokens using their exchange rates
-     */
-    function swap(
-        uint256 _amount,
-        address _fromzToken,
-        address _tozToken,
-        uint256 exchangeRate
-    ) public {
-        require(
-            IERC20(_fromzToken).balanceOf(msg.sender) >= _amount,
-            "Insufficient balance"
-        );
+        address _zTokenFrom,
+        address _zTokenTo
+    ) external nonReentrant {
+        uint256 _amountWithDecimal = _getDecimal(_amount);
+        uint256 swapFeePerTransactionInUsd;
+        uint256 swapAmount;
         uint256 mintAmount;
+        uint256 swapFeePerTransaction;
+        uint256 globalMintersFeePerTransaction;
+        uint256 treasuryFeePerTransaction;
+
+        require(
+            IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amountWithDecimal,
+            "Insufficient balance"
+        );
+        uint256 _zTokenFromUSDRate = getZTokenUSDRate(_zTokenFrom);
+        uint256 _zTokenToUSDRate = getZTokenUSDRate(_zTokenTo);
+
+        swapFeePerTransaction = (swapFee * _amountWithDecimal) / MULTIPLIER;
+        swapFeePerTransactionInUsd = swapFeePerTransaction / _zTokenFromUSDRate;
+
         /**
-         * Get the exchange rate between zToken and USD
+         * Get the USD values of involved zTokens
+         * Handle minting of new tokens and burning of user tokens
+         */
+        swapAmount = _amountWithDecimal - swapFeePerTransaction;
+        mintAmount =
+            swapAmount *
+            WadRayMath.wadDiv(_zTokenToUSDRate, _zTokenFromUSDRate);
+        mintAmount = mintAmount / MULTIPLIER;
+
+        bool burnSuccess = _burn(_zTokenFrom, msg.sender, _amountWithDecimal);
+
+        if (!burnSuccess) revert BurnFailed();
+
+        bool mintSuccess = _mint(_zTokenTo, msg.sender, mintAmount);
+
+        if (!mintSuccess) revert MintFailed();
+
+        /**
+         * Handle swap fees and rewards
+         */
+        globalMintersFeePerTransaction =
+            (globalMintersPercentOfSwapFee * swapFeePerTransactionInUsd) /
+            MULTIPLIER;
+
+        globalMintersFee += globalMintersFeePerTransaction;
+
+        treasuryFeePerTransaction =
+            (treasuryPercentOfSwapFee * swapFeePerTransactionInUsd) /
+            MULTIPLIER;
+
+        /**
+         * Send the treasury amount from User to a treasury wallet
+         */
+        IERC20(zUSD).transferFrom(
+            msg.sender,
+            treasuryWallet,
+            treasuryFeePerTransaction
+        );
+
+        /**
+         * @TODO - Implement a more elegent solution
+         * Send the global minters fee from User to the global minters fee wallet
+         */
+        IERC20(zUSD).transferFrom(
+            msg.sender,
+            mintersWallet,
+            globalMintersFeePerTransaction
+        );
+
+        /**
+         * @TODO - Send the remaining fee to all minters
+         */
+        for (uint256 i = 0; i < mintersAddresses.length; i++) {
+            mintersRewardPerTransaction[mintersAddresses[i]] =
+                ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
+                    netMintGlobal) *
+                globalMintersFeePerTransaction;
+
+            userAccruedFeeBalance[mintersAddresses[i]] +=
+                mintersRewardPerTransaction[mintersAddresses[i]] /
+                MULTIPLIER;
+        }
+        emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
+    }
+
+    /**
+     * Allows to user to repay and/or withdraw their collateral
+     */
+    function repayAndWithdraw(
+        uint256 _amountToRepay,
+        uint256 _amountToWithdraw,
+        address _zToken
+    ) external nonReentrant {
+        uint256 _amountToRepayWithDecimal = _getDecimal(_amountToRepay);
+        uint256 _amountToWithdrawWithDecimal = _getDecimal(_amountToWithdraw);
+
+        uint256 amountToRepayinUSD = _repay(_amountToRepayWithDecimal, _zToken);
+
+        uint256 userDebt;
+
+        userDebt = _updateUserDebtOutstanding(
+            netMintUser[msg.sender],
+            netMintGlobal
+        );
+
+        require(
+            userCollateralBalance[msg.sender] >= _amountToWithdrawWithDecimal,
+            "Insufficient Collateral"
+        );
+
+        require(
+            userDebt >= amountToRepayinUSD,
+            "Amount to repay greater than Debt"
+        );
+
+        /**
+         * Substract withdraw from current net mint value and assign new mint value
          */
 
-        if (_fromzToken == zUSD){
+        uint256 amountToSubtract = (netMintUser[msg.sender] *
+            amountToRepayinUSD) / userDebt;
 
-            exchangeRate = getexchangeRate(_tozToken);
+        netMintUser[msg.sender] -= amountToSubtract;
 
-            mintAmount = _amount * exchangeRate;
+        netMintGlobal -= amountToSubtract;
 
-        }else if (_tozToken == zUSD){
+        bool burnSuccess = _burn(zUSD, msg.sender, amountToRepayinUSD);
 
-            exchangeRate = getexchangeRate(_fromzToken);
+        if (!burnSuccess) revert BurnFailed();
 
-            mintAmount = _amount/exchangeRate;
-
-        }else{
-
-            uint256 fromExchangeRate = getexchangeRate(_fromzToken);
-            uint256 toExchangeRate  = getexchangeRate(_tozToken);
-
-            mintAmount = _amount / fromExchangeRate * toExchangeRate;
-
-        }
-
-        _burn(_fromzToken, msg.sender, _amount);
-
-        _mint(_tozToken, msg.sender, mintAmount);
-    }
-
-    /** 
-    * Allows to user to repay and/or withdraw their collateral
-    */
-    function repayAndWithdraw(uint256 _amountToRepay, uint256 _amountToWithdraw, address _zToken, uint exchangeRate) public payable returns(string memory) {
-    
-      uint256 amountToRepayinUSD = _repay(_amountToRepay, _zToken, exchangeRate);
-
-      require(amountToRepayinUSD >= _amountToWithdraw, "Insufficient Collateral");
-
-      /**
-      * Substract withdraw from current net mint value and assign new mint value
-      */
-      uint256 amountToSubtract = (netMintUser[msg.sender][zUSD] * amountToRepayinUSD/User[msg.sender].userDebtOutstanding);
-
-      netMintUser[msg.sender][zUSD] -= amountToSubtract;
-
-      netMintGlobal[zUSD] -= amountToSubtract;
-
-        uint256 AdjustedDebt; 
-
-       /**
-        *  Check if Net Mint User and Net Mint Global = 0 
-        */
-     if (netMintUser[msg.sender][zUSD] == 0) {
-       /**
-        * Get User outstanding debt
-        * If 0 replace netMintUser[msg.sender][zUSD] with 1
-        */
-        AdjustedDebt = 0;
-
-     } else {
         /**
-        * Get User outstanding debt
-        */
-       // _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
+         * Test impact after burn
+         */
+        /**
+         * @TODO - Implement actual transfer of cUSD _amountToWithdrawWithDecimal value
+         */
+        userCollateralBalance[msg.sender] -= _amountToWithdrawWithDecimal;
 
-        AdjustedDebt = netMintUser[msg.sender][zUSD]/netMintGlobal[zUSD]*((IERC20(zUSD).totalSupply() + IERC20(zNGN).totalSupply() / zNGNzUSDPair + IERC20(zCFA).totalSupply() / zCFAzUSDPair + IERC20(zZAR).totalSupply() / zZARzUSDPair) - amountToRepayinUSD);
+        bool transferSuccess = IERC20(collateral).transfer(
+            msg.sender,
+            _amountToWithdrawWithDecimal
+        );
 
-     }
-        
-        /** 
-        * Check collateral ratio
-        */
+        if (!transferSuccess) revert TransferFailed();
 
-        uint256 AdjustedCollateralizationRatio;
+        _testImpact();
 
-        if(AdjustedDebt > 0){
-            AdjustedCollateralizationRatio = 10**3 * (User[msg.sender].userCollateralBalance - _amountToWithdraw) / AdjustedDebt;
-        }
-        
-        string memory result;
+        emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
+    }
 
-        if(AdjustedCollateralizationRatio >= collaterizationRatioValue || AdjustedDebt == 0) {
-          _burn(zUSD, msg.sender, amountToRepayinUSD);
+    function liquidate(address _user) external nonReentrant {
+        uint256 userDebt;
+        uint256 userCollateralRatio;
 
+        /**
+         * Update the user's debt balance with latest price feeds
+         */
+        userDebt = _updateUserDebtOutstanding(
+            netMintUser[_user],
+            netMintGlobal
+        );
 
-        _updateUserDebtOutstanding(netMintUser[msg.sender][zUSD], netMintGlobal[zUSD]);
-        
-        if(netMintGlobal[zUSD] > 0){
-            User[msg.sender].collaterizationRatio =  10**3 * (User[msg.sender].userCollateralBalance / User[msg.sender].userDebtOutstanding );
-        }
-        /** 
-        * @TODO - Implement actual transfer of cUSD _amountToWithdraw value
-        */
-        result = "Withdraw is Valid!";
+        /**
+         * Ensure user has debt before progressing
+         * Update user's collateral ratio
+         */
+        require(userDebt > 0, "User has no debt");
+
+        userCollateralRatio =
+            1e3 *
+            WadRayMath.wadDiv(userCollateralBalance[_user], userDebt);
+
+        userCollateralRatio = userCollateralRatio / MULTIPLIER;
+        /**
+         * User collateral ratio must be lower than healthy threshold for liquidation to occur
+         */
+        require(
+            userCollateralRatio < COLLATERIZATION_RATIO_THRESHOLD,
+            "User has a healthy collateral ratio"
+        );
+
+        /**
+         * check if the liquidator has sufficient zUSD to repay the debt
+         * burn the zUSD
+         */
+        require(
+            IERC20(zUSD).balanceOf(msg.sender) >= userDebt,
+            "Liquidator does not have sufficient zUSD to repay debt"
+        );
+
+        bool burnSuccess = _burn(zUSD, msg.sender, userDebt);
+
+        if (!burnSuccess) revert BurnFailed();
+
+        // _testImpact(zNGNUSDRate, zXAFUSDRate, zZARUSDRate);
+
+        /**
+         * Get reward fee
+         * Send the equivalent of debt as collateral and also a 10% fee to the liquidator
+         */
+        uint256 rewardFee = (userDebt * LIQUIDATION_REWARD) / 100;
+
+        uint256 totalRewards = userDebt + rewardFee;
+
+        bool transferSuccess = IERC20(collateral).transfer(
+            msg.sender,
+            totalRewards
+        );
+
+        if (!transferSuccess) revert TransferFailed();
+
+        netMintGlobal = netMintGlobal - netMintUser[_user];
+
+        netMintUser[_user] = 0;
+
+        /**
+         * Possible overflow
+         */
+        if (userCollateralBalance[_user] >= totalRewards) {
+            userCollateralBalance[_user] =
+                userCollateralBalance[_user] -
+                totalRewards;
         } else {
-            result = "Insufficient collateral";
+            userCollateralBalance[_user] = 0;
         }
-        return result;
+
+        emit Liquidate(_user, userDebt, totalRewards, msg.sender);
+
+        /**
+         * @TODO - netMintGlobal = netMintGlobal - netMintUser, Update users collateral balance by substracting the totalRewards, netMintUser = 0, userDebtOutstanding = 0
+         */
     }
 
     /**
-     * Change the currency pairs rate against 1 USD
+     * Allow minters to claim rewards/fees on swap
      */
-    function changezCFAzUSDRate(uint256 rate) public onlyOwner {
-        zCFAzUSDPair = rate;
-    }
+    function claimFees() external nonReentrant {
+        require(
+            userAccruedFeeBalance[msg.sender] > 0,
+            "User has no accumulated rewards"
+        );
 
-    function changezNGNzUSDRate(uint256 rate) public onlyOwner {
-        zNGNzUSDPair = rate;
-    }
+        bool transferSuccess = IERC20(zUSD).transfer(
+            msg.sender,
+            userAccruedFeeBalance[msg.sender]
+        );
+        if (!transferSuccess) revert TransferFailed();
 
-    function changezZARzUSDRate(uint256 rate) public onlyOwner {
-        zZARzUSDPair = rate;
+        userAccruedFeeBalance[msg.sender] = 0;
     }
 
     /**
-     * Get exchange rate values
+     * Get user balance
      */
-    function getzCFAzUSDRate() public view returns (uint256) {
-        return zCFAzUSDPair;
-    }
-
-    function getzNGNzUSDRate() public view returns (uint256) {
-        return zNGNzUSDPair;
-    }
-
-    function getzZARzUSDRate() public view returns (uint256) {
-        return zZARzUSDPair;
+    function getBalance(address _token) external view returns (uint256) {
+        return IERC20(_token).balanceOf(msg.sender);
     }
 
     /**
      * @dev Returns the minted token value for a particular user
      */
-    function getNetUserMintValue(address _address, address _tokenAddress)
-        public
+    function getNetUserMintValue(address _address)
+        external
         view
         returns (uint256)
     {
-        return netMintUser[_address][_tokenAddress];
+        return netMintUser[_address];
     }
 
     /**
      * @dev Returns the total minted token value
      */
-    function getNetGlobalMintValue(address _tokenAddress)
-        public
-        view
-        returns (uint256)
-    {
-        return netMintGlobal[_tokenAddress];
+    function getNetGlobalMintValue() external view returns (uint256) {
+        return netMintGlobal;
     }
 
-    /**
-     * Get User struct values
-     */
-    function getCollaterizationRatio() public view returns (uint256) {
-        return User[msg.sender].collaterizationRatio;
-    }
-
-    function getUserCollateralBalance() public view returns (uint256) {
-        return User[msg.sender].userCollateralBalance;
-    }
-
-    function getUserDebtOutstanding() public view returns (uint256) {
-        return User[msg.sender].userDebtOutstanding;
+    function getUserCollateralBalance() external view returns (uint256) {
+        return userCollateralBalance[msg.sender];
     }
 
     /**
      * Add collateral address
      */
-    function addCollateralAddress(address _address) public onlyOwner {
+    function addCollateralAddress(address _address) external onlyOwner {
         collateral = _address;
     }
 
     /**
      * Add the four zToken contract addresses
      */
-    function addZUSDAddress(address _address) public onlyOwner {
+    function addZUSDAddress(address _address) external onlyOwner {
         zUSD = _address;
     }
 
-    function addZNGNAddress(address _address) public onlyOwner {
+    function addZNGNAddress(address _address) external onlyOwner {
         zNGN = _address;
     }
 
-    function addZCFAAddress(address _address) public onlyOwner {
-        zCFA = _address;
+    function addZXAFAddress(address _address) external onlyOwner {
+        zXAF = _address;
     }
 
-    function addZZARAddress(address _address) public onlyOwner {
+    function addZZARAddress(address _address) external onlyOwner {
         zZAR = _address;
+    }
+
+    /**
+     * Set exchange rates
+     */
+    function setNGNUSD(uint256 _rates) external onlyOwner {
+        NGNUSD = _rates;
+    }
+
+    function setXAFUSD(uint256 _rates) external onlyOwner {
+        XAFUSD = _rates;
+    }
+
+    function setZARUSD(uint256 _rates) external onlyOwner {
+        ZARUSD = _rates;
+    }
+
+    /**
+     * set collaterization ratio threshold
+     */
+    function setCollaterizationRatioThreshold(uint256 value)
+        external
+        onlyOwner
+    {
+        COLLATERIZATION_RATIO_THRESHOLD = value;
+    }
+
+    /**
+     * set liquidation reward
+     */
+    function setLiquidationReward(uint256 value) external onlyOwner {
+        LIQUIDATION_REWARD = value;
+    }
+
+    /**
+     * Change swap variables
+     */
+    function addTreasuryWallet(address _address) external onlyOwner {
+        treasuryWallet = _address;
+    }
+
+    function addMintersWallet(address _address) external onlyOwner {
+        mintersWallet = _address;
+    }
+
+    function changeSwapFee(uint256 numerator, uint256 denominator)
+        external
+        onlyOwner
+    {
+        swapFee = WadRayMath.wadDiv(numerator, denominator);
+    }
+
+    function changeGlobalMintersFee(uint256 numerator, uint256 denominator)
+        external
+        onlyOwner
+    {
+        globalMintersPercentOfSwapFee = WadRayMath.wadDiv(
+            numerator,
+            denominator
+        );
+    }
+
+    function changeTreasuryFee(uint256 numerator, uint256 denominator)
+        external
+        onlyOwner
+    {
+        treasuryPercentOfSwapFee = WadRayMath.wadDiv(numerator, denominator);
     }
 
     /**
      * Get Total Supply of zTokens
      */
-    function getTotalSupply(address _address) public view returns (uint256) {
+    function getTotalSupply(address _address) external view returns (uint256) {
         return IERC20(_address).totalSupply();
+    }
+
+    /**
+     * view minters addresses
+     */
+    function viewMintersAddress() external view returns (address[] memory) {
+        return mintersAddresses;
     }
 
     /**
@@ -430,79 +569,148 @@ contract Vault is Ownable {
         address _tokenAddress,
         address _userAddress,
         uint256 _amount
-    ) internal virtual {
+    ) internal virtual returns (bool) {
         ZTokenInterface(_tokenAddress).mint(_userAddress, _amount);
+
+        return true;
     }
 
     function _burn(
         address _tokenAddress,
         address _userAddress,
         uint256 _amount
-    ) internal virtual {
+    ) internal virtual returns (bool) {
         ZTokenInterface(_tokenAddress).burn(_userAddress, _amount);
+
+        return true;
     }
 
     /**
      * Allows a user swap back their zTokens to zUSD
      */
-    function _repay(
-        uint256 _amount,
-        address _zToken,
-        uint256 exchangeRate
-    ) internal virtual returns (uint256) {
+    function _repay(uint256 _amount, address _zToken)
+        internal
+        virtual
+        returns (uint256)
+    {
         // require(IERC20(_zToken).balanceOf(msg.sender) >= _amount, "Insufficient balance");
         uint256 zUSDMintAmount;
 
-      /** 
-      * Get the exchange rate between zToken and USD
-      */
-          exchangeRate = getexchangeRate(_zToken);
-          
-          zUSDMintAmount = _amount * 1/(exchangeRate);
+        /**
+         * Get the amount to mint in zUSD
+         */
+        uint256 zTokenUSDRate = getZTokenUSDRate(_zToken);
+
+        zUSDMintAmount = (_amount * 1) / zTokenUSDRate;
+
+        zUSDMintAmount = zUSDMintAmount * HALF_MULTIPLIER;
 
         _burn(_zToken, msg.sender, _amount);
 
-        _mint(zUSD, msg.sender, zUSDMintAmount); 
-
+        _mint(zUSD, msg.sender, zUSDMintAmount);
 
         return zUSDMintAmount;
     }
 
-    /** 
-    * Get User Outstanding Debt
-    */
-    function _updateUserDebtOutstanding(uint256 _netMintUserzUSDValue, uint256 _netMintGlobalzUSDValue) internal virtual returns(uint256){
+    /**
+     * Multiply values by 10^18
+     */
+    function _getDecimal(uint256 amount) internal virtual returns (uint256) {
+        uint256 decimalAmount;
 
-        if(_netMintGlobalzUSDValue > 0){
-            User[msg.sender].userDebtOutstanding = _netMintUserzUSDValue/_netMintGlobalzUSDValue * (IERC20(zUSD).totalSupply() + 
-            IERC20(zNGN).totalSupply() / getexchangeRate(zNGN) + 
-            IERC20(zCFA).totalSupply() / getexchangeRate(zCFA) + 
-            IERC20(zZAR).totalSupply() / getexchangeRate(zZAR));
-            
-        }else{
+        decimalAmount = amount * 1e18;
 
-            User[msg.sender].userDebtOutstanding = 0;
-        }
-        
-        return User[msg.sender].userDebtOutstanding;
+        return decimalAmount;
     }
 
-    //test function
-    function getUserDebtOutstanding(
+    /**
+     * Returns the appropriate USD exchange rate during a swap/repay
+     */
+    function getZTokenUSDRate(address _address)
+        internal
+        virtual
+        returns (uint256)
+    {
+        uint256 zTokenUSDRate;
+
+        if (_address == zNGN) {
+            zTokenUSDRate = NGNUSD;
+        } else if (_address == zXAF) {
+            zTokenUSDRate = XAFUSD;
+        } else if (_address == zZAR) {
+            zTokenUSDRate = ZARUSD;
+        } else if (_address == zUSD) {
+            zTokenUSDRate = USD;
+        }
+
+        return zTokenUSDRate;
+    }
+
+    /**
+     * Get User Outstanding Debt
+     */
+
+    function _updateUserDebtOutstanding(
         uint256 _netMintUserzUSDValue,
-        uint256 _netMintGlobalzUSDValue,
-        uint256 totalSupply,
-        uint256 USDSupply
-    ) public returns (uint256) {
-        User[msg.sender].userDebtOutstanding =
-            (_netMintUserzUSDValue / _netMintGlobalzUSDValue) *
-            (USDSupply +
-                totalSupply /
-                zNGNzUSDPair +
-                totalSupply /
-                zCFAzUSDPair +
-                totalSupply /
-                zZARzUSDPair);
-        return User[msg.sender].userDebtOutstanding;
+        uint256 _netMintGlobalzUSDValue
+    ) public view returns (uint256) {
+        require(
+            _netMintGlobalzUSDValue > 0,
+            "Global zUSD mint too low, underflow may occur"
+        );
+
+        uint256 userDebtOutstanding;
+        uint256 globalDebt;
+        uint256 mintRatio;
+
+        globalDebt =
+            (IERC20(zUSD).totalSupply() * HALF_MULTIPLIER) +
+            WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), NGNUSD) +
+            WadRayMath.wadDiv(IERC20(zXAF).totalSupply(), XAFUSD) +
+            WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), ZARUSD);
+
+        globalDebt = globalDebt / HALF_MULTIPLIER;
+
+        mintRatio = WadRayMath.wadDiv(
+            _netMintUserzUSDValue,
+            _netMintGlobalzUSDValue
+        );
+
+        userDebtOutstanding = mintRatio * globalDebt;
+
+        userDebtOutstanding = userDebtOutstanding / MULTIPLIER;
+
+        return userDebtOutstanding;
+    }
+
+    /**
+     * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
+     */
+    function _testImpact() internal view returns (bool) {
+        uint256 userDebt;
+        /**
+         * If the netMintGlobal is 0, then
+         */
+        if (netMintGlobal != 0) {
+            require(
+                netMintGlobal > 0,
+                "Global zUSD mint too low, underflow may occur"
+            );
+
+            userDebt = _updateUserDebtOutstanding(
+                netMintUser[msg.sender],
+                netMintGlobal
+            );
+
+            uint256 collateralRatioMultipliedByDebt = (userDebt *
+                COLLATERIZATION_RATIO_THRESHOLD) / 1e3;
+
+            require(
+                userCollateralBalance[msg.sender] >=
+                    collateralRatioMultipliedByDebt,
+                "User does not have sufficient collateral to cover this transaction"
+            );
+        }
+        return true;
     }
 }

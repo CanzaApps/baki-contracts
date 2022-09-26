@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/**
- * @dev Interface of the zTokens to be used by Baki
- */
-interface ZTokenInterface {
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+interface CUSDInterface {
     /**
      * @dev Amount of zTokens to be minted for a user
      * requires onlyVault modifier
@@ -16,14 +15,16 @@ interface ZTokenInterface {
      * requires onlyVault modifier
      */
     function burn(address _address, uint256 _amount) external returns (bool);
+}
 
-    /**
-     * @dev Amount of a particular zTokens minted by Vault contract for a user
-     */
-    function getUserMintValue(address _address) external returns (uint256);
+contract CUSDFaucet is Ownable {
+    address public cUSD;
 
-    /**
-     * @dev Global amount of a particular zTokens minted by Vault contract for all users
-     */
-    function getGlobalMint() external returns (uint256);
+    function SetCUSD(address CUSDAddress) public onlyOwner {
+        cUSD = CUSDAddress;
+    }
+
+    function getCUSD(address receiver) public {
+        CUSDInterface(cUSD).mint(receiver, 1000000000 ether);
+    }
 }
