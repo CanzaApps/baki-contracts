@@ -70,7 +70,7 @@ contract Vault is ReentrancyGuard, Ownable {
      * store 25% swap fee seaparately
      * user => uint256
      */
-    
+
     mapping(address => uint256) public userAccruedFeeBalance;
 
     mapping(address => uint256) private mintersRewardPerTransaction;
@@ -119,10 +119,10 @@ contract Vault is ReentrancyGuard, Ownable {
     @notice Allows a user to deposit cUSD collateral in exchange for some amount of zUSD.
      _depositAmount  The amount of cUSD the user sent in the transaction
      */
-    function depositAndMint(
-        uint256 _depositAmount,
-        uint256 _mintAmount
-    ) external nonReentrant {
+    function depositAndMint(uint256 _depositAmount, uint256 _mintAmount)
+        external
+        nonReentrant
+    {
         uint256 _depositAmountWithDecimal = _getDecimal(_depositAmount);
         uint256 _mintAmountWithDecimal = _getDecimal(_mintAmount);
 
@@ -200,9 +200,11 @@ contract Vault is ReentrancyGuard, Ownable {
          * Handle minting of new tokens and burning of user tokens
          */
         swapAmount = _amountWithDecimal - swapFeePerTransaction;
-        mintAmount = swapAmount * WadRayMath.wadDiv(_zTokenToUSDRate, _zTokenFromUSDRate);
+        mintAmount =
+            swapAmount *
+            WadRayMath.wadDiv(_zTokenToUSDRate, _zTokenFromUSDRate);
         mintAmount = mintAmount / MULTIPLIER;
-        
+
         bool burnSuccess = _burn(_zTokenFrom, msg.sender, _amountWithDecimal);
 
         if (!burnSuccess) revert BurnFailed();
@@ -270,10 +272,7 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 _amountToRepayWithDecimal = _getDecimal(_amountToRepay);
         uint256 _amountToWithdrawWithDecimal = _getDecimal(_amountToWithdraw);
 
-        uint256 amountToRepayinUSD = _repay(
-            _amountToRepayWithDecimal,
-            _zToken
-        );
+        uint256 amountToRepayinUSD = _repay(_amountToRepayWithDecimal, _zToken);
 
         uint256 userDebt;
 
@@ -300,6 +299,8 @@ contract Vault is ReentrancyGuard, Ownable {
             amountToRepayinUSD) / userDebt;
 
         netMintUser[msg.sender] -= amountToSubtract;
+
+        netMintGlobal -= amountToSubtract;
 
         bool burnSuccess = _burn(zUSD, msg.sender, amountToRepayinUSD);
 
@@ -482,17 +483,17 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     /**
-    * Set exchange rates
+     * Set exchange rates
      */
     function setNGNUSD(uint256 _rates) external onlyOwner {
         NGNUSD = _rates;
     }
 
-     function setXAFUSD(uint256 _rates) external onlyOwner {
+    function setXAFUSD(uint256 _rates) external onlyOwner {
         XAFUSD = _rates;
     }
 
-     function setZARUSD(uint256 _rates) external onlyOwner {
+    function setZARUSD(uint256 _rates) external onlyOwner {
         ZARUSD = _rates;
     }
 
@@ -588,10 +589,11 @@ contract Vault is ReentrancyGuard, Ownable {
     /**
      * Allows a user swap back their zTokens to zUSD
      */
-    function _repay(
-        uint256 _amount,
-        address _zToken
-    ) internal virtual returns (uint256) {
+    function _repay(uint256 _amount, address _zToken)
+        internal
+        virtual
+        returns (uint256)
+    {
         // require(IERC20(_zToken).balanceOf(msg.sender) >= _amount, "Insufficient balance");
         uint256 zUSDMintAmount;
 
@@ -621,19 +623,23 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     /**
-    * Returns the appropriate USD exchange rate during a swap/repay
-    */
-    function getZTokenUSDRate(address _address) internal virtual returns (uint256) {
-         uint256 zTokenUSDRate;
+     * Returns the appropriate USD exchange rate during a swap/repay
+     */
+    function getZTokenUSDRate(address _address)
+        internal
+        virtual
+        returns (uint256)
+    {
+        uint256 zTokenUSDRate;
 
-        if (_address == zNGN)  {
+        if (_address == zNGN) {
             zTokenUSDRate = NGNUSD;
         } else if (_address == zXAF) {
             zTokenUSDRate = XAFUSD;
         } else if (_address == zZAR) {
             zTokenUSDRate = ZARUSD;
         } else if (_address == zUSD) {
-            zTokenUSDRate == USD;
+            zTokenUSDRate = USD;
         }
 
         return zTokenUSDRate;
@@ -657,7 +663,7 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 mintRatio;
 
         globalDebt =
-            IERC20(zUSD).totalSupply() +
+            (IERC20(zUSD).totalSupply() * HALF_MULTIPLIER) +
             WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), NGNUSD) +
             WadRayMath.wadDiv(IERC20(zXAF).totalSupply(), XAFUSD) +
             WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), ZARUSD);

@@ -34,7 +34,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     address vault;
 
     /**
-    * Implement an onlyVault address
+     * Implement an onlyVault address
      */
     //  OnlyVault modifier
     // modifier onlyVault {
@@ -50,7 +50,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
         override
         returns (bool)
     {
-    require(msg.sender == vault, "You do not have permission");
+        require(msg.sender == vault, "You do not have permission");
         _mint(_userAddress, _amount);
 
         return true;
@@ -61,7 +61,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
         override
         returns (bool)
     {
-     require(msg.sender == vault, "You do not have permission");
+        require(msg.sender == vault, "You do not have permission");
         _burn(_userAddress, _amount);
 
         return true;
@@ -71,7 +71,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
         vault = _address;
     }
 
-    function vaultAddress() public view returns(address) {
+    function vaultAddress() public view returns (address) {
         return vault;
     }
 
