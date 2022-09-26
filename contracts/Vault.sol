@@ -156,7 +156,6 @@ contract Vault is ReentrancyGuard, Ownable {
 
         netMintUser[msg.sender] += _mintAmountWithDecimal;
         grossMintUser[msg.sender] += _mintAmountWithDecimal;
-        userCollateralBalance[msg.sender] -= _mintAmountWithDecimal;
 
         netMintGlobal += _mintAmountWithDecimal;
 
@@ -603,6 +602,8 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 zTokenUSDRate = getZTokenUSDRate(_zToken);
 
         zUSDMintAmount = (_amount * 1) / zTokenUSDRate;
+
+        zUSDMintAmount = zUSDMintAmount * HALF_MULTIPLIER;
 
         _burn(_zToken, msg.sender, _amount);
 
