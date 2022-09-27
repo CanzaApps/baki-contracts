@@ -33,11 +33,10 @@ contract Vault is ReentrancyGuard, Ownable {
      * exchange rates of 1 USD to zTokens
      * TODO These should be fetched from an Oracle
      */
-    uint256 private NGNUSD;
-    uint256 private ZARUSD;
-    uint256 private XAFUSD;
-    uint256 private XRATE;
-    uint256 private USD = 1e3;
+    uint256 public NGNUSD;
+    uint256 public ZARUSD;
+    uint256 public XAFUSD;
+    uint256 public USD = 1e3;
 
     constructor() {}
 
