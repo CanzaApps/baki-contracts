@@ -63,8 +63,6 @@ contract Vault is ReentrancyGuard, Ownable {
      * Net Global Mint
      */
     uint256 public netMintGlobal;
-
-    uint256 public globalDebt;
     /**
      * map users to accrued fee balance
      * store 75% swap fee to be shared by minters
@@ -646,12 +644,12 @@ contract Vault is ReentrancyGuard, Ownable {
     function _updateUserDebtOutstanding(
         uint256 _netMintUserzUSDValue,
         uint256 _netMintGlobalzUSDValue
-    ) public returns (uint256) {
+    ) public view returns (uint256) {
         require(
             _netMintGlobalzUSDValue > 0,
             "Global zUSD mint too low, underflow may occur"
         );
-
+        uint256 globalDebt;
         uint256 userDebtOutstanding;
         uint256 mintRatio;
 
@@ -678,7 +676,7 @@ contract Vault is ReentrancyGuard, Ownable {
     /**
      * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
      */
-    function _testImpact() internal returns (bool) {
+    function _testImpact() internal view returns (bool) {
         uint256 userDebt;
         /**
          * If the netMintGlobal is 0, then
