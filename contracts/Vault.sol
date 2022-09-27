@@ -53,7 +53,7 @@ contract Vault is ReentrancyGuard, Ownable {
      * Net User Mint
      * Maps user address => cumulative mint value
      */
-    mapping(address => uint256) private netMintUser;
+    mapping(address => uint256) public netMintUser;
 
     mapping(address => uint256) private grossMintUser;
 
@@ -62,12 +62,13 @@ contract Vault is ReentrancyGuard, Ownable {
     /**
      * Net Global Mint
      */
-    uint256 private netMintGlobal;
+    uint256 public netMintGlobal;
 
+    uint256 public globalDebt;
     /**
      * map users to accrued fee balance
      * store 75% swap fee to be shared by minters
-     * store 25% swap fee seaparately
+     * store 25% swap fee separately
      * user => uint256
      */
 
@@ -226,27 +227,19 @@ contract Vault is ReentrancyGuard, Ownable {
             MULTIPLIER;
 
         /**
-         * Send the treasury amount from User to a treasury wallet
+         * Send the treasury amount to a treasury wallet
          */
-        IERC20(zUSD).transferFrom(
-            msg.sender,
-            treasuryWallet,
-            treasuryFeePerTransaction
-        );
+        bool treasuryFeeMint = _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
+
+        if (!treasuryFeeMint) revert MintFailed();
 
         /**
-         * @TODO - Implement a more elegent solution
          * Send the global minters fee from User to the global minters fee wallet
          */
-        IERC20(zUSD).transferFrom(
-            msg.sender,
-            mintersWallet,
-            globalMintersFeePerTransaction
-        );
+        bool GlobalMintersFee = _mint(zUSD, address(this), globalMintersFeePerTransaction);
 
-        /**
-         * @TODO - Send the remaining fee to all minters
-         */
+        if (!GlobalMintersFee) revert MintFailed();
+
         for (uint256 i = 0; i < mintersAddresses.length; i++) {
             mintersRewardPerTransaction[mintersAddresses[i]] =
                 ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
@@ -653,14 +646,13 @@ contract Vault is ReentrancyGuard, Ownable {
     function _updateUserDebtOutstanding(
         uint256 _netMintUserzUSDValue,
         uint256 _netMintGlobalzUSDValue
-    ) public view returns (uint256) {
+    ) public returns (uint256) {
         require(
             _netMintGlobalzUSDValue > 0,
             "Global zUSD mint too low, underflow may occur"
         );
 
         uint256 userDebtOutstanding;
-        uint256 globalDebt;
         uint256 mintRatio;
 
         globalDebt =
@@ -686,7 +678,7 @@ contract Vault is ReentrancyGuard, Ownable {
     /**
      * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
      */
-    function _testImpact() internal view returns (bool) {
+    function _testImpact() internal returns (bool) {
         uint256 userDebt;
         /**
          * If the netMintGlobal is 0, then
