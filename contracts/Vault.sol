@@ -53,7 +53,7 @@ contract Vault is ReentrancyGuard, Ownable {
      * Net User Mint
      * Maps user address => cumulative mint value
      */
-    mapping(address => uint256) private netMintUser;
+    mapping(address => uint256) public netMintUser;
 
     mapping(address => uint256) private grossMintUser;
 
@@ -62,12 +62,11 @@ contract Vault is ReentrancyGuard, Ownable {
     /**
      * Net Global Mint
      */
-    uint256 private netMintGlobal;
-
+    uint256 public netMintGlobal;
     /**
      * map users to accrued fee balance
      * store 75% swap fee to be shared by minters
-     * store 25% swap fee seaparately
+     * store 25% swap fee separately
      * user => uint256
      */
 
@@ -156,7 +155,6 @@ contract Vault is ReentrancyGuard, Ownable {
 
         netMintUser[msg.sender] += _mintAmountWithDecimal;
         grossMintUser[msg.sender] += _mintAmountWithDecimal;
-        userCollateralBalance[msg.sender] -= _mintAmountWithDecimal;
 
         netMintGlobal += _mintAmountWithDecimal;
 
@@ -227,27 +225,19 @@ contract Vault is ReentrancyGuard, Ownable {
             MULTIPLIER;
 
         /**
-         * Send the treasury amount from User to a treasury wallet
+         * Send the treasury amount to a treasury wallet
          */
-        IERC20(zUSD).transferFrom(
-            msg.sender,
-            treasuryWallet,
-            treasuryFeePerTransaction
-        );
+        bool treasuryFeeMint = _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
+
+        if (!treasuryFeeMint) revert MintFailed();
 
         /**
-         * @TODO - Implement a more elegent solution
          * Send the global minters fee from User to the global minters fee wallet
          */
-        IERC20(zUSD).transferFrom(
-            msg.sender,
-            mintersWallet,
-            globalMintersFeePerTransaction
-        );
+        bool GlobalMintersFee = _mint(zUSD, address(this), globalMintersFeePerTransaction);
 
-        /**
-         * @TODO - Send the remaining fee to all minters
-         */
+        if (!GlobalMintersFee) revert MintFailed();
+
         for (uint256 i = 0; i < mintersAddresses.length; i++) {
             mintersRewardPerTransaction[mintersAddresses[i]] =
                 ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
@@ -604,6 +594,8 @@ contract Vault is ReentrancyGuard, Ownable {
 
         zUSDMintAmount = (_amount * 1) / zTokenUSDRate;
 
+        zUSDMintAmount = zUSDMintAmount * HALF_MULTIPLIER;
+
         _burn(_zToken, msg.sender, _amount);
 
         _mint(zUSD, msg.sender, zUSDMintAmount);
@@ -657,9 +649,8 @@ contract Vault is ReentrancyGuard, Ownable {
             _netMintGlobalzUSDValue > 0,
             "Global zUSD mint too low, underflow may occur"
         );
-
-        uint256 userDebtOutstanding;
         uint256 globalDebt;
+        uint256 userDebtOutstanding;
         uint256 mintRatio;
 
         globalDebt =
