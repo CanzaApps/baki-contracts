@@ -190,8 +190,9 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 _zTokenFromUSDRate = getZTokenUSDRate(_zTokenFrom);
         uint256 _zTokenToUSDRate = getZTokenUSDRate(_zTokenTo);
 
-        swapFeePerTransaction = (swapFee * _amountWithDecimal) / HALF_MULTIPLIER;
+        swapFeePerTransaction = (swapFee * _amountWithDecimal) / MULTIPLIER;
         swapFeePerTransactionInUsd = swapFeePerTransaction / _zTokenFromUSDRate;
+        swapFeePerTransactionInUsd = swapFeePerTransactionInUsd * HALF_MULTIPLIER;
 
         /**
          * Get the USD values of involved zTokens
