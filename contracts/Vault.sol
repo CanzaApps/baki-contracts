@@ -6,13 +6,14 @@
  * Check if the substracting value is greater than or less than the added values i.e check for a negative result
  */
 
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/ZTokenInterface.sol";
 import "./libraries/WadRayMath.sol";
+import "./interfaces/BakiOracleInterface.sol";
 
 error TransferFailed();
 error MintFailed();
@@ -33,12 +34,12 @@ contract Vault is ReentrancyGuard, Ownable {
      * exchange rates of 1 USD to zTokens
      * TODO These should be fetched from an Oracle
      */
-    uint256 public NGNUSD;
-    uint256 public ZARUSD;
-    uint256 public XAFUSD;
-    uint256 public USD = 1e3;
+    address private Oracle;
 
-    constructor() {}
+    constructor() {   
+    }
+
+    uint256 private constant USD = 1e3;
 
     uint256 private constant MULTIPLIER = 1e6;
 
@@ -91,6 +92,7 @@ contract Vault is ReentrancyGuard, Ownable {
     address[] public mintersAddresses;
 
     address[] private _blacklistedAddresses;
+
     bool public transactionsPaused = false;
 
     /**
@@ -497,21 +499,6 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     /**
-     * Set exchange rates
-     */
-    function setNGNUSD(uint256 _rates) external onlyOwner {
-        NGNUSD = _rates;
-    }
-
-    function setXAFUSD(uint256 _rates) external onlyOwner {
-        XAFUSD = _rates;
-    }
-
-    function setZARUSD(uint256 _rates) external onlyOwner {
-        ZARUSD = _rates;
-    }
-
-    /**
      * set collaterization ratio threshold
      */
     function setCollaterizationRatioThreshold(uint256 value)
@@ -654,6 +641,13 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     /**
+    * Set Oracle contract address
+     */
+    function setOracleAddress(address _address) public {
+        Oracle = _address;
+    }
+
+    /**
      * Returns the appropriate USD exchange rate during a swap/repay
      */
     function getZTokenUSDRate(address _address)
@@ -664,11 +658,11 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 zTokenUSDRate;
 
         if (_address == zNGN) {
-            zTokenUSDRate = NGNUSD;
+            zTokenUSDRate = BakiOracleInterface(Oracle).NGNUSD();
         } else if (_address == zXAF) {
-            zTokenUSDRate = XAFUSD;
+            zTokenUSDRate = BakiOracleInterface(Oracle).XAFUSD();
         } else if (_address == zZAR) {
-            zTokenUSDRate = ZARUSD;
+            zTokenUSDRate = BakiOracleInterface(Oracle).ZARUSD();
         } else if (_address == zUSD) {
             zTokenUSDRate = USD;
         }
@@ -694,9 +688,9 @@ contract Vault is ReentrancyGuard, Ownable {
 
         globalDebt =
             (IERC20(zUSD).totalSupply() * HALF_MULTIPLIER) +
-            WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), NGNUSD) +
-            WadRayMath.wadDiv(IERC20(zXAF).totalSupply(), XAFUSD) +
-            WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), ZARUSD);
+            WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), BakiOracleInterface(Oracle).NGNUSD()) +
+            WadRayMath.wadDiv(IERC20(zXAF).totalSupply(), BakiOracleInterface(Oracle).XAFUSD()) +
+            WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), BakiOracleInterface(Oracle).ZARUSD());
 
         globalDebt = globalDebt / HALF_MULTIPLIER;
 
