@@ -6,13 +6,14 @@
  * Check if the substracting value is greater than or less than the added values i.e check for a negative result
  */
 
-pragma solidity 0.8.17;
+pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/ZTokenInterface.sol";
 import "./libraries/WadRayMath.sol";
+import "./interfaces/BakiOracleInterface.sol";
 
 error TransferFailed();
 error MintFailed();
@@ -33,12 +34,12 @@ contract Vault is ReentrancyGuard, Ownable {
      * exchange rates of 1 USD to zTokens
      * TODO These should be fetched from an Oracle
      */
-    uint256 public NGNUSD;
-    uint256 public ZARUSD;
-    uint256 public XAFUSD;
-    uint256 public USD = 1e3;
+    address private Oracle;
 
-    constructor() {}
+    constructor() {   
+    }
+
+    uint256 private constant USD = 1e3;
 
     uint256 private constant MULTIPLIER = 1e6;
 
@@ -90,6 +91,31 @@ contract Vault is ReentrancyGuard, Ownable {
      */
     address[] public mintersAddresses;
 
+    address[] private _blacklistedAddresses;
+
+    bool public transactionsPaused = false;
+
+    /**
+    * @dev modifier to check for blacklisted addresses
+     */
+    modifier blockBlacklistedAddresses() {
+        for (uint i = 0; i < _blacklistedAddresses.length; i++) {
+            if (msg.sender == _blacklistedAddresses[i]) {
+                revert("This address has been blacklisted");
+            }
+        }
+        _;
+    }
+
+    modifier isTransactionsPaused() {
+        require(transactionsPaused == false, "transactions are paused");
+        _;
+    }
+
+    /**
+    * @dev 
+     */
+
     event Deposit(
         address indexed _account,
         address indexed _token,
@@ -119,7 +145,7 @@ contract Vault is ReentrancyGuard, Ownable {
      */
     function depositAndMint(uint256 _depositAmount, uint256 _mintAmount)
         external
-        nonReentrant
+        nonReentrant blockBlacklistedAddresses() isTransactionsPaused()
     {
         uint256 _depositAmountWithDecimal = _getDecimal(_depositAmount);
         uint256 _mintAmountWithDecimal = _getDecimal(_mintAmount);
@@ -173,7 +199,7 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 _amount,
         address _zTokenFrom,
         address _zTokenTo
-    ) external nonReentrant {
+    ) external nonReentrant blockBlacklistedAddresses() isTransactionsPaused() {
         uint256 _amountWithDecimal = _getDecimal(_amount);
         uint256 swapFeePerTransactionInUsd;
         uint256 swapAmount;
@@ -258,7 +284,7 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 _amountToRepay,
         uint256 _amountToWithdraw,
         address _zToken
-    ) external nonReentrant {
+    ) external nonReentrant blockBlacklistedAddresses() isTransactionsPaused() {
         uint256 _amountToRepayWithDecimal = _getDecimal(_amountToRepay);
         uint256 _amountToWithdrawWithDecimal = _getDecimal(_amountToWithdraw);
 
@@ -316,7 +342,7 @@ contract Vault is ReentrancyGuard, Ownable {
         emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
     }
 
-    function liquidate(address _user) external nonReentrant {
+    function liquidate(address _user) external nonReentrant blockBlacklistedAddresses() isTransactionsPaused() {
         uint256 userDebt;
         uint256 userCollateralRatio;
 
@@ -370,18 +396,11 @@ contract Vault is ReentrancyGuard, Ownable {
 
         uint256 totalRewards = userDebt + rewardFee;
 
-        bool transferSuccess = IERC20(collateral).transfer(
-            msg.sender,
-            totalRewards
-        );
-
-        if (!transferSuccess) revert TransferFailed();
-
         netMintGlobal = netMintGlobal - netMintUser[_user];
 
         netMintUser[_user] = 0;
 
-        /**
+         /**
          * Possible overflow
          */
         if (userCollateralBalance[_user] >= totalRewards) {
@@ -391,6 +410,13 @@ contract Vault is ReentrancyGuard, Ownable {
         } else {
             userCollateralBalance[_user] = 0;
         }
+
+        bool transferSuccess = IERC20(collateral).transfer(
+            msg.sender,
+            totalRewards
+        );
+
+        if (!transferSuccess) revert TransferFailed();
 
         emit Liquidate(_user, userDebt, totalRewards, msg.sender);
 
@@ -473,21 +499,6 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     /**
-     * Set exchange rates
-     */
-    function setNGNUSD(uint256 _rates) external onlyOwner {
-        NGNUSD = _rates;
-    }
-
-    function setXAFUSD(uint256 _rates) external onlyOwner {
-        XAFUSD = _rates;
-    }
-
-    function setZARUSD(uint256 _rates) external onlyOwner {
-        ZARUSD = _rates;
-    }
-
-    /**
      * set collaterization ratio threshold
      */
     function setCollaterizationRatioThreshold(uint256 value)
@@ -505,6 +516,22 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     /**
+    * Add to blacklist
+     */
+    function addAddressToBlacklist(address _address) external onlyOwner {
+        _blacklistedAddresses.push(_address);
+    }
+
+    /**
+    * Pause transactions
+     */
+    function pauseTransactions() external onlyOwner { 
+    if (transactionsPaused == false) 
+        { transactionsPaused = true; }
+    else { transactionsPaused = false; }
+}
+
+    /**
      * Change swap variables
      */
     function addTreasuryWallet(address _address) external onlyOwner {
@@ -515,28 +542,28 @@ contract Vault is ReentrancyGuard, Ownable {
         mintersWallet = _address;
     }
 
-    function changeSwapFee(uint256 numerator, uint256 denominator)
+    function changeSwapFee(uint256 a, uint256 b)
         external
         onlyOwner
     {
-        swapFee = WadRayMath.wadDiv(numerator, denominator);
+        swapFee = WadRayMath.wadDiv(a, b);
     }
 
-    function changeGlobalMintersFee(uint256 numerator, uint256 denominator)
+    function changeGlobalMintersFee(uint256 a, uint256 b)
         external
         onlyOwner
     {
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(
-            numerator,
-            denominator
+            a,
+            b
         );
     }
 
-    function changeTreasuryFee(uint256 numerator, uint256 denominator)
+    function changeTreasuryFee(uint256 a, uint256 b)
         external
         onlyOwner
     {
-        treasuryPercentOfSwapFee = WadRayMath.wadDiv(numerator, denominator);
+        treasuryPercentOfSwapFee = WadRayMath.wadDiv(a, b);
     }
 
     /**
@@ -560,7 +587,7 @@ contract Vault is ReentrancyGuard, Ownable {
         address _tokenAddress,
         address _userAddress,
         uint256 _amount
-    ) internal virtual returns (bool) {
+    ) internal returns (bool) {
         ZTokenInterface(_tokenAddress).mint(_userAddress, _amount);
 
         return true;
@@ -570,7 +597,7 @@ contract Vault is ReentrancyGuard, Ownable {
         address _tokenAddress,
         address _userAddress,
         uint256 _amount
-    ) internal virtual returns (bool) {
+    ) internal returns (bool) {
         ZTokenInterface(_tokenAddress).burn(_userAddress, _amount);
 
         return true;
@@ -581,7 +608,6 @@ contract Vault is ReentrancyGuard, Ownable {
      */
     function _repay(uint256 _amount, address _zToken)
         internal
-        virtual
         returns (uint256)
     {
         // require(IERC20(_zToken).balanceOf(msg.sender) >= _amount, "Insufficient balance");
@@ -615,6 +641,13 @@ contract Vault is ReentrancyGuard, Ownable {
     }
 
     /**
+    * Set Oracle contract address
+     */
+    function setOracleAddress(address _address) public {
+        Oracle = _address;
+    }
+
+    /**
      * Returns the appropriate USD exchange rate during a swap/repay
      */
     function getZTokenUSDRate(address _address)
@@ -625,11 +658,11 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 zTokenUSDRate;
 
         if (_address == zNGN) {
-            zTokenUSDRate = NGNUSD;
+            zTokenUSDRate = BakiOracleInterface(Oracle).NGNUSD();
         } else if (_address == zXAF) {
-            zTokenUSDRate = XAFUSD;
+            zTokenUSDRate = BakiOracleInterface(Oracle).XAFUSD();
         } else if (_address == zZAR) {
-            zTokenUSDRate = ZARUSD;
+            zTokenUSDRate = BakiOracleInterface(Oracle).ZARUSD();
         } else if (_address == zUSD) {
             zTokenUSDRate = USD;
         }
@@ -655,9 +688,9 @@ contract Vault is ReentrancyGuard, Ownable {
 
         globalDebt =
             (IERC20(zUSD).totalSupply() * HALF_MULTIPLIER) +
-            WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), NGNUSD) +
-            WadRayMath.wadDiv(IERC20(zXAF).totalSupply(), XAFUSD) +
-            WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), ZARUSD);
+            WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), BakiOracleInterface(Oracle).NGNUSD()) +
+            WadRayMath.wadDiv(IERC20(zXAF).totalSupply(), BakiOracleInterface(Oracle).XAFUSD()) +
+            WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), BakiOracleInterface(Oracle).ZARUSD());
 
         globalDebt = globalDebt / HALF_MULTIPLIER;
 

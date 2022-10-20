@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.17;
 
 import "@chainlink/contracts/src/v0.8/ChainlinkClient.sol";
 import "@chainlink/contracts/src/v0.8/ConfirmedOwner.sol";
+import "./interfaces/BakiOracleInterface.sol";
 
-contract PriceOracle is ChainlinkClient, ConfirmedOwner {
+contract PriceOracle is BakiOracleInterface, ChainlinkClient, ConfirmedOwner {
     using Chainlink for Chainlink.Request;
 
     bytes32 private jobId;
     uint256 private fee;
     uint256 public NGNUSD;
-    uint256 public CFAUSD;
+    uint256 public XAFUSD;
     uint256 public ZARUSD;
     uint256 public XRATE;
     string public baseURL;
@@ -70,15 +71,15 @@ contract PriceOracle is ChainlinkClient, ConfirmedOwner {
         NGNUSD = result;
     }
 
-    // ############################################################################# CFAUSD #############################################################################
-    function _submitCFAUSD(string memory url)
+    // ############################################################################# XAFUSD #############################################################################
+    function _submitXAFUSD(string memory url)
         internal
         returns (bytes32 requestId)
     {
         Chainlink.Request memory req = buildChainlinkRequest(
             jobId,
             address(this),
-            this._fulfillCFAUSD.selector
+            this._fulfillXAFUSD.selector
         );
 
         // Set the URL to perform the GET request on
@@ -96,12 +97,12 @@ contract PriceOracle is ChainlinkClient, ConfirmedOwner {
     /**
      * Receive the response in the form of uint256
      */
-    function _fulfillCFAUSD(bytes32 _requestId, uint256 result)
+    function _fulfillXAFUSD(bytes32 _requestId, uint256 result)
         public
         recordChainlinkFulfillment(_requestId)
     {
         emit ResultObtained(_requestId, result);
-        CFAUSD = result;
+        XAFUSD = result;
     }
 
     // ############################################################################# ZARUSD #############################################################################
@@ -186,7 +187,7 @@ contract PriceOracle is ChainlinkClient, ConfirmedOwner {
             keccak256(abi.encodePacked(pair)) ==
             keccak256(abi.encodePacked("CFA/USD"))
         ) {
-            _submitCFAUSD(url);
+            _submitXAFUSD(url);
         } else if (
             keccak256(abi.encodePacked(pair)) ==
             keccak256(abi.encodePacked("ZAR/USD"))
