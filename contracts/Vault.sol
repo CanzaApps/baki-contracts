@@ -643,7 +643,7 @@ contract Vault is ReentrancyGuard, Ownable {
     /**
     * Set Oracle contract address
      */
-    function setOracleAddress(address _address) public {
+    function setOracleAddress(address _address) public onlyOwner {
         Oracle = _address;
     }
 
