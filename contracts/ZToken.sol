@@ -41,6 +41,17 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     //   require(msg.sender == vault);
     //   _;
     // }
+    event Mint(
+        address indexed _userAddress, 
+        uint256 _amount
+    );
+
+    event Burn(
+        address indexed _userAddress,
+        uint256 _amount
+    );
+
+    event AddVaultAddress(address _address);
 
     /**
      * @dev these can only be called by the Vault contract
@@ -53,6 +64,8 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
         require(msg.sender == vault, "You do not have permission");
         _mint(_userAddress, _amount);
 
+        emit Mint(_userAddress, _amount);
+
         return true;
     }
 
@@ -64,11 +77,17 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
         require(msg.sender == vault, "You do not have permission");
         _burn(_userAddress, _amount);
 
+        emit Burn(_userAddress, _amount);
+
         return true;
     }
 
     function addVaultAddress(address _address) external onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
         vault = _address;
+
+        emit AddVaultAddress(_address);
     }
 
     function vaultAddress() public view returns (address) {

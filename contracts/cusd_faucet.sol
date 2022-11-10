@@ -20,11 +20,17 @@ interface CUSDInterface {
 contract CUSDFaucet is Ownable {
     address public cUSD;
 
-    function SetCUSD(address CUSDAddress) public onlyOwner {
-        cUSD = CUSDAddress;
+    event SetCUSD(address _address);
+
+    function setCUSD(address _address) public onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
+        cUSD = _address;
+
+        emit SetCUSD(_address);
     }
 
-    function getCUSD(address receiver) public {
-        CUSDInterface(cUSD).mint(receiver, 1000000000 ether);
+    function getCUSD(address receiver) public returns(bool) {
+        return CUSDInterface(cUSD).mint(receiver, 1000000000 ether);
     }
 }

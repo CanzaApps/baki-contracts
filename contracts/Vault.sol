@@ -122,16 +122,19 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 _depositAmount,
         uint256 _mintAmount
     );
+
     event Swap(
         address indexed _account,
         address indexed _zTokenFrom,
         address indexed _zTokenTo
     );
+
     event Withdraw(
         address indexed _account,
         address indexed _token,
         uint256 indexed _amountToWithdraw
     );
+    
     event Liquidate(
         address indexed _account,
         uint256 indexed debt,
@@ -166,6 +169,8 @@ contract Vault is ReentrancyGuard, Ownable {
     event ChangeGlobalMintersFee(uint256 a, uint256 b);
 
     event ChangeTreasuryFee(uint256 a, uint256 b);
+
+    event SetOracleAddress(address _address);
 
     /** 
     @notice Allows a user to deposit cUSD collateral in exchange for some amount of zUSD.
@@ -504,6 +509,8 @@ contract Vault is ReentrancyGuard, Ownable {
      * Add collateral address
      */
     function addCollateralAddress(address _address) external onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
         collateral = _address;
 
         emit AddCollateralAddress(_address);
@@ -513,24 +520,32 @@ contract Vault is ReentrancyGuard, Ownable {
      * Add the four zToken contract addresses
      */
     function addZUSDAddress(address _address) external onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
         zUSD = _address;
 
         emit AddZUSDAddress(_address);
     }
 
     function addZNGNAddress(address _address) external onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
         zNGN = _address;
 
         emit AddZNGNAddress(_address);
     }
 
     function addZXAFAddress(address _address) external onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
         zXAF = _address;
 
         emit AddZXAFAddress(_address);
     }
 
     function addZZARAddress(address _address) external onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
         zZAR = _address;
 
         emit AddZZARAddress(_address);
@@ -561,6 +576,8 @@ contract Vault is ReentrancyGuard, Ownable {
     * Add to blacklist
      */
     function addAddressToBlacklist(address _address) external onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
         _blacklistedAddresses.push(_address);
 
         emit AddAddressToBlacklist(_address);
@@ -581,12 +598,16 @@ contract Vault is ReentrancyGuard, Ownable {
      * Change swap variables
      */
     function addTreasuryWallet(address _address) external onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
         treasuryWallet = _address;
 
         emit AddTreasuryWallet(_address);
     }
 
     function addMintersWallet(address _address) external onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
         mintersWallet = _address;
 
         emit AddMintersWallet(_address);
@@ -700,7 +721,11 @@ contract Vault is ReentrancyGuard, Ownable {
     * Set Oracle contract address
      */
     function setOracleAddress(address _address) public onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
         Oracle = _address;
+
+        emit SetOracleAddress(_address);
     }
 
     /**
