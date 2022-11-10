@@ -186,7 +186,7 @@ contract PriceOracle is BakiOracleInterface, ChainlinkClient, ConfirmedOwner {
             _submitNGNUSD(url);
         } else if (
             keccak256(abi.encodePacked(pair)) ==
-            keccak256(abi.encodePacked("CFA/USD"))
+            keccak256(abi.encodePacked("XAF/USD"))
         ) {
             _submitXAFUSD(url);
         } else if (
