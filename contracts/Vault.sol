@@ -139,6 +139,34 @@ contract Vault is ReentrancyGuard, Ownable {
         address liquidator
     );
 
+    event AddCollateralAddress(address _address);
+
+    event AddZUSDAddress(address _address);
+
+    event AddZNGNAddress(address _address);
+
+    event AddZXAFAddress(address _address);
+
+    event AddZZARAddress(address _address);
+
+    event SetCollaterizationRatioThreshold(uint256 _value);
+
+    event SetLiquidationReward(uint256 _value);
+
+    event AddAddressToBlacklist(address _address);
+
+    event PauseTransactions();
+
+    event AddTreasuryWallet(address _address);
+
+    event AddMintersWallet(address _address);
+
+    event ChangeSwapFee(uint256 a, uint256 b);
+
+    event ChangeGlobalMintersFee(uint256 a, uint256 b);
+
+    event ChangeTreasuryFee(uint256 a, uint256 b);
+
     /** 
     @notice Allows a user to deposit cUSD collateral in exchange for some amount of zUSD.
      _depositAmount  The amount of cUSD the user sent in the transaction
@@ -477,6 +505,8 @@ contract Vault is ReentrancyGuard, Ownable {
      */
     function addCollateralAddress(address _address) external onlyOwner {
         collateral = _address;
+
+        emit AddCollateralAddress(_address);
     }
 
     /**
@@ -484,35 +514,47 @@ contract Vault is ReentrancyGuard, Ownable {
      */
     function addZUSDAddress(address _address) external onlyOwner {
         zUSD = _address;
+
+        emit AddZUSDAddress(_address);
     }
 
     function addZNGNAddress(address _address) external onlyOwner {
         zNGN = _address;
+
+        emit AddZNGNAddress(_address);
     }
 
     function addZXAFAddress(address _address) external onlyOwner {
         zXAF = _address;
+
+        emit AddZXAFAddress(_address);
     }
 
     function addZZARAddress(address _address) external onlyOwner {
         zZAR = _address;
+
+        emit AddZZARAddress(_address);
     }
 
     /**
      * set collaterization ratio threshold
      */
-    function setCollaterizationRatioThreshold(uint256 value)
+    function setCollaterizationRatioThreshold(uint256 _value)
         external
         onlyOwner
     {
-        COLLATERIZATION_RATIO_THRESHOLD = value;
+        COLLATERIZATION_RATIO_THRESHOLD = _value;
+
+        emit SetCollaterizationRatioThreshold(_value);
     }
 
     /**
      * set liquidation reward
      */
-    function setLiquidationReward(uint256 value) external onlyOwner {
-        LIQUIDATION_REWARD = value;
+    function setLiquidationReward(uint256 _value) external onlyOwner {
+        LIQUIDATION_REWARD = _value;
+
+        emit SetLiquidationReward(_value);
     }
 
     /**
@@ -520,6 +562,8 @@ contract Vault is ReentrancyGuard, Ownable {
      */
     function addAddressToBlacklist(address _address) external onlyOwner {
         _blacklistedAddresses.push(_address);
+
+        emit AddAddressToBlacklist(_address);
     }
 
     /**
@@ -529,6 +573,8 @@ contract Vault is ReentrancyGuard, Ownable {
     if (transactionsPaused == false) 
         { transactionsPaused = true; }
     else { transactionsPaused = false; }
+
+    emit PauseTransactions();
 }
 
     /**
@@ -536,10 +582,14 @@ contract Vault is ReentrancyGuard, Ownable {
      */
     function addTreasuryWallet(address _address) external onlyOwner {
         treasuryWallet = _address;
+
+        emit AddTreasuryWallet(_address);
     }
 
     function addMintersWallet(address _address) external onlyOwner {
         mintersWallet = _address;
+
+        emit AddMintersWallet(_address);
     }
 
     function changeSwapFee(uint256 a, uint256 b)
@@ -547,6 +597,8 @@ contract Vault is ReentrancyGuard, Ownable {
         onlyOwner
     {
         swapFee = WadRayMath.wadDiv(a, b);
+
+        emit ChangeSwapFee(a,b);
     }
 
     function changeGlobalMintersFee(uint256 a, uint256 b)
@@ -557,6 +609,8 @@ contract Vault is ReentrancyGuard, Ownable {
             a,
             b
         );
+
+        emit ChangeGlobalMintersFee(a,b);
     }
 
     function changeTreasuryFee(uint256 a, uint256 b)
@@ -564,6 +618,8 @@ contract Vault is ReentrancyGuard, Ownable {
         onlyOwner
     {
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(a, b);
+
+        emit ChangeTreasuryFee(a,b);
     }
 
     /**

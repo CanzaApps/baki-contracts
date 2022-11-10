@@ -19,6 +19,7 @@ contract PriceOracle is BakiOracleInterface, ChainlinkClient, ConfirmedOwner {
 
     event NewQuery(string description);
     event ResultObtained(bytes32 indexed requestId, uint256 result);
+    event UpdateBaseURL(string _url);
 
     /**
      * @notice Initialize the link token and target oracle
@@ -201,5 +202,7 @@ contract PriceOracle is BakiOracleInterface, ChainlinkClient, ConfirmedOwner {
     // set Base URL
     function updateBaseURL(string memory _url) public onlyOwner {
         baseURL = _url;
+
+        emit UpdateBaseURL(_url);
     }
 }
