@@ -134,7 +134,7 @@ contract Vault is ReentrancyGuard, Ownable {
         address indexed _token,
         uint256 indexed _amountToWithdraw
     );
-    
+
     event Liquidate(
         address indexed _account,
         uint256 indexed debt,
@@ -248,10 +248,14 @@ contract Vault is ReentrancyGuard, Ownable {
         uint256 _zTokenFromUSDRate = getZTokenUSDRate(_zTokenFrom);
         uint256 _zTokenToUSDRate = getZTokenUSDRate(_zTokenTo);
 
-        swapFeePerTransaction = (swapFee * _amountWithDecimal) / MULTIPLIER;
-        swapFeePerTransactionInUsd = swapFeePerTransaction / _zTokenFromUSDRate;
-        swapFeePerTransactionInUsd = swapFeePerTransactionInUsd * HALF_MULTIPLIER;
+        swapFeePerTransaction = swapFee * _amountWithDecimal;
 
+        swapFeePerTransaction = swapFeePerTransaction / MULTIPLIER;
+
+        swapFeePerTransactionInUsd = swapFeePerTransaction * HALF_MULTIPLIER;
+
+        swapFeePerTransactionInUsd = swapFeePerTransactionInUsd / _zTokenFromUSDRate;
+       
         /**
          * Get the USD values of involved zTokens
          * Handle minting of new tokens and burning of user tokens
@@ -274,14 +278,16 @@ contract Vault is ReentrancyGuard, Ownable {
          * Handle swap fees and rewards
          */
         globalMintersFeePerTransaction =
-            (globalMintersPercentOfSwapFee * swapFeePerTransactionInUsd) /
-            MULTIPLIER;
+            globalMintersPercentOfSwapFee * swapFeePerTransactionInUsd;
+
+        globalMintersFeePerTransaction = globalMintersFeePerTransaction / MULTIPLIER;
 
         globalMintersFee += globalMintersFeePerTransaction;
 
         treasuryFeePerTransaction =
-            (treasuryPercentOfSwapFee * swapFeePerTransactionInUsd) /
-            MULTIPLIER;
+            treasuryPercentOfSwapFee * swapFeePerTransactionInUsd;
+
+        treasuryFeePerTransaction = treasuryFeePerTransaction / MULTIPLIER;
 
         /**
          * Send the treasury amount to a treasury wallet
@@ -665,9 +671,9 @@ contract Vault is ReentrancyGuard, Ownable {
         address _userAddress,
         uint256 _amount
     ) internal returns (bool) {
-        ZTokenInterface(_tokenAddress).mint(_userAddress, _amount);
+        bool success = ZTokenInterface(_tokenAddress).mint(_userAddress, _amount);
 
-        return true;
+        return success;
     }
 
     function _burn(
@@ -675,9 +681,9 @@ contract Vault is ReentrancyGuard, Ownable {
         address _userAddress,
         uint256 _amount
     ) internal returns (bool) {
-        ZTokenInterface(_tokenAddress).burn(_userAddress, _amount);
+        bool success = ZTokenInterface(_tokenAddress).burn(_userAddress, _amount);
 
-        return true;
+        return success;
     }
 
     /**
@@ -695,13 +701,17 @@ contract Vault is ReentrancyGuard, Ownable {
          */
         uint256 zTokenUSDRate = getZTokenUSDRate(_zToken);
 
-        zUSDMintAmount = (_amount * 1) / zTokenUSDRate;
+        zUSDMintAmount = _amount * 1 * HALF_MULTIPLIER;
 
-        zUSDMintAmount = zUSDMintAmount * HALF_MULTIPLIER;
+        zUSDMintAmount = zUSDMintAmount / zTokenUSDRate;
 
-        _burn(_zToken, msg.sender, _amount);
+        bool burnSuccess = _burn(_zToken, msg.sender, _amount);
 
-        _mint(zUSD, msg.sender, zUSDMintAmount);
+        if(!burnSuccess) revert BurnFailed();
+
+        bool mintSuccess = _mint(zUSD, msg.sender, zUSDMintAmount);
+
+        if(!mintSuccess) revert MintFailed();
 
         return zUSDMintAmount;
     }
@@ -773,7 +783,7 @@ contract Vault is ReentrancyGuard, Ownable {
             WadRayMath.wadDiv(IERC20(zXAF).totalSupply(), BakiOracleInterface(Oracle).XAFUSD()) +
             WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), BakiOracleInterface(Oracle).ZARUSD());
 
-        globalDebt = globalDebt / HALF_MULTIPLIER;
+        // globalDebt = globalDebt / HALF_MULTIPLIER;
 
         mintRatio = WadRayMath.wadDiv(
             _netMintUserzUSDValue,
@@ -782,7 +792,9 @@ contract Vault is ReentrancyGuard, Ownable {
 
         userDebtOutstanding = mintRatio * globalDebt;
 
-        userDebtOutstanding = userDebtOutstanding / MULTIPLIER;
+        uint256 tempMultiplier = MULTIPLIER * HALF_MULTIPLIER;
+
+        userDebtOutstanding = userDebtOutstanding / tempMultiplier;
 
         return userDebtOutstanding;
     }

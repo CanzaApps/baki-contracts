@@ -31,6 +31,8 @@ contract CUSDFaucet is Ownable {
     }
 
     function getCUSD(address receiver) public returns(bool) {
-        return CUSDInterface(cUSD).mint(receiver, 1000000000 ether);
+        bool success = CUSDInterface(cUSD).mint(receiver, 1000000000 ether);
+
+        return success;
     }
 }
