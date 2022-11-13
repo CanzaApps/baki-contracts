@@ -158,6 +158,8 @@ contract Vault is ReentrancyGuard, Ownable {
 
     event AddAddressToBlacklist(address _address);
 
+    event RemoveAddressFromBlacklist(address _address);
+
     event PauseTransactions();
 
     event AddTreasuryWallet(address _address);
@@ -589,6 +591,47 @@ contract Vault is ReentrancyGuard, Ownable {
         _blacklistedAddresses.push(_address);
 
         emit AddAddressToBlacklist(_address);
+    }
+
+    /**
+    * Check for blacklisted address
+     */
+    function checkForBlacklistedAddress(address _address) public view returns(bool) {
+         for(uint256 i = 0; i < _blacklistedAddresses.length - 1; i++){
+
+            if(_blacklistedAddresses[i] == _address){
+
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+    * Remove from blacklist
+     */
+    function removeAddressFromBlacklist(address _address) external onlyOwner {
+        require(_address != address(0), "address cannot be a zero address");
+
+        bool isAddressBlacklisted = checkForBlacklistedAddress(_address);
+        
+        require(isAddressBlacklisted == true, "address is not a blacklisted address");
+
+        uint256 index;
+
+        for(uint256 i = 0; i < _blacklistedAddresses.length - 1; i++){
+
+            if(_blacklistedAddresses[i] == _address){
+
+                index = i;
+            }
+        }
+
+        _blacklistedAddresses[index] = _blacklistedAddresses[_blacklistedAddresses.length - 1];
+        
+        _blacklistedAddresses.pop();
+
+        emit RemoveAddressFromBlacklist(_address);
     }
 
     /**
