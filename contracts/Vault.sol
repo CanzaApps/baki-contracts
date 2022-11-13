@@ -564,6 +564,8 @@ contract Vault is ReentrancyGuard, Ownable {
         external
         onlyOwner
     {
+        require(_value > 12 * 1e2 || _value < 20 * 1e2, "value must be within the set limit");
+
         COLLATERIZATION_RATIO_THRESHOLD = _value;
 
         emit SetCollaterizationRatioThreshold(_value);
