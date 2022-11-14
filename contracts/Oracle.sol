@@ -28,13 +28,13 @@ contract PriceOracle is BakiOracleInterface, ChainlinkClient, ConfirmedOwner {
      * Link Token: 0xa36085F69e2889c224210F603D836748e7dC0088
      * Oracle: 0x74EcC8Bdeb76F2C6760eD2dc8A46ca5e581fA656 (Chainlink DevRel)
      * jobId: ca98366cc7314957b8c012c72f05aeeb
-     *
+     * These values are hardcoded testnet specific values
      */
     constructor() ConfirmedOwner(msg.sender) {
         setChainlinkToken(0x01BE23585060835E02B77ef475b0Cc51aA1e0709);
         setChainlinkOracle(0xf3FBB7f3391F62C8fe53f89B41dFC8159EE9653f);
         jobId = "ca98366cc7314957b8c012c72f05aeeb";
-        fee = 0.25 * 10**18; // 0,1 * 10**18 (Varies by network and job)
+        fee = 0.25 * 10**18; // 0.25 * 10**18 (Varies by network and job) 
     }
 
     // ############################################################################# NGNUSD #############################################################################
@@ -194,8 +194,13 @@ contract PriceOracle is BakiOracleInterface, ChainlinkClient, ConfirmedOwner {
             keccak256(abi.encodePacked("ZAR/USD"))
         ) {
             _submitZARUSD(url);
-        } else {
+        } else if (
+            keccak256(abi.encodePacked(pair)) ==
+            keccak256(abi.encodePacked("XRATE/USD"))
+        ) {
             _submitXRATE(url);
+        } else {
+          revert();
         }
     }
 
