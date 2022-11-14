@@ -566,6 +566,7 @@ contract Vault is ReentrancyGuard, Ownable {
         external
         onlyOwner
     {
+    // Set an upper and lower bound on the new value of collaterization ratio threshold
         require(_value > 12 * 1e2 || _value < 20 * 1e2, "value must be within the set limit");
 
         COLLATERIZATION_RATIO_THRESHOLD = _value;
