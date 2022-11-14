@@ -628,7 +628,7 @@ contract Vault is ReentrancyGuard, Ownable {
         }
 
         _blacklistedAddresses[index] = _blacklistedAddresses[_blacklistedAddresses.length - 1];
-        
+
         _blacklistedAddresses.pop();
 
         emit RemoveAddressFromBlacklist(_address);
@@ -801,6 +801,8 @@ contract Vault is ReentrancyGuard, Ownable {
             zTokenUSDRate = BakiOracleInterface(Oracle).ZARUSD();
         } else if (_address == zUSD) {
             zTokenUSDRate = USD;
+        } else {
+            revert("Invalid address");
         }
 
         return zTokenUSDRate;
