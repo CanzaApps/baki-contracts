@@ -444,20 +444,29 @@ contract Vault is ReentrancyGuard, Ownable {
          /**
          * Possible overflow
          */
-        if (userCollateralBalance[_user] >= totalRewards) {
-            userCollateralBalance[_user] =
-                userCollateralBalance[_user] -
-                totalRewards;
-        } else {
-            userCollateralBalance[_user] = 0;
-        }
+              if (userCollateralBalance[_user] <= totalRewards) {
+            bool transferSuccess = IERC20(collateral).transfer(
+            msg.sender,
+            userCollateralBalance[_user]
+        );
 
-        bool transferSuccess = IERC20(collateral).transfer(
+        if (!transferSuccess) revert TransferFailed();
+
+        userCollateralBalance[_user] = 0;
+
+        } else {
+            
+            bool transferSuccess = IERC20(collateral).transfer(
             msg.sender,
             totalRewards
         );
 
         if (!transferSuccess) revert TransferFailed();
+
+        userCollateralBalance[_user] =
+                userCollateralBalance[_user] -
+                totalRewards;
+        }
 
         emit Liquidate(_user, userDebt, totalRewards, msg.sender);
 
