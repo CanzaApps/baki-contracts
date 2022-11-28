@@ -5,31 +5,25 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/BakiOracleInterface.sol";
 
 contract BakiOracle is Ownable, BakiOracleInterface {
-    uint256 _NGNUSD;
-    uint256 _XAFUSD;
-    uint256 _ZARUSD;
+    uint256 public NGNUSD;
+    uint256 public XAFUSD;
+    uint256 public ZARUSD;
+    uint256 public collateralUSD;
 
     function setNGNUSD(uint256 _value) external onlyOwner {
-        _NGNUSD = _value;
+        NGNUSD = _value;
     }
 
     function setXAFUSD(uint256 _value) external onlyOwner {
-        _XAFUSD = _value;
+        XAFUSD = _value;
     }
 
     function setZARUSD(uint256 _value) external onlyOwner {
-        _ZARUSD = _value;
+        ZARUSD = _value;
     }
 
-    function NGNUSD() external view returns (uint256) {
-        return _NGNUSD;
-    }
+    function setCollateralUSD(uint256 _value) external onlyOwner {
+        collateralUSD = _value;
+    } 
 
-    function XAFUSD() external view returns (uint256) {
-        return _XAFUSD;
-    }
-
-    function ZARUSD() external view returns (uint256) {
-        return _ZARUSD;
-    }
 }

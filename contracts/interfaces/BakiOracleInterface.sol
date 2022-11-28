@@ -13,4 +13,6 @@ interface BakiOracleInterface {
     function XAFUSD() external view returns (uint256);
 
     function ZARUSD() external view returns (uint256);
+
+    function collateralUSD() external view returns (uint256);
 }
