@@ -783,13 +783,36 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         returns (uint256)
     {
         // require(IERC20Upgradeable(_zToken).balanceOf(msg.sender) >= _amount, "Insufficient balance");
-        uint256 zUSDMintAmount;
+        uint256 zUSDMintAmount = _amount;
+        uint256 swapFeePerTransactionInUsd;
+        uint256 swapFeePerTransaction;
+        uint256 globalMintersFeePerTransaction;
+        uint256 treasuryFeePerTransaction;
 
         /**
-         * Get the amount to mint in zUSD
-         */
+        * If the token to be repayed is zUSD, skip the fees, mint, burn process and return the _amount directly
+        */
+        if (_zToken != zUSD) {
+       
         uint256 zTokenUSDRate = getZTokenUSDRate(_zToken);
 
+        /**
+        * Get the swap fee per transaction in USD
+        */
+        
+        swapFeePerTransaction = swapFee * _amount;
+
+        swapFeePerTransaction = swapFeePerTransaction / MULTIPLIER;
+
+        swapFeePerTransactionInUsd = swapFeePerTransaction * HALF_MULTIPLIER;
+
+        swapFeePerTransactionInUsd = swapFeePerTransactionInUsd / zTokenUSDRate;  
+
+        /**
+        * Get the amount to mint in zUSD
+        */
+        zUSDMintAmount = _amount - swapFeePerTransaction;
+        
         zUSDMintAmount = _amount * 1 * HALF_MULTIPLIER;
 
         zUSDMintAmount = zUSDMintAmount / zTokenUSDRate;
@@ -801,6 +824,48 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         bool mintSuccess = _mint(zUSD, msg.sender, zUSDMintAmount);
 
         if(!mintSuccess) revert MintFailed();
+
+         /**
+         * Handle swap fees and rewards
+         */
+        globalMintersFeePerTransaction =
+            globalMintersPercentOfSwapFee * swapFeePerTransactionInUsd;
+
+        globalMintersFeePerTransaction = globalMintersFeePerTransaction / MULTIPLIER;
+
+        globalMintersFee += globalMintersFeePerTransaction;
+
+        treasuryFeePerTransaction =
+            treasuryPercentOfSwapFee * swapFeePerTransactionInUsd;
+
+        treasuryFeePerTransaction = treasuryFeePerTransaction / MULTIPLIER;
+
+         /**
+         * Send the treasury amount to a treasury wallet
+         */
+        bool treasuryFeeMint = _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
+
+        if (!treasuryFeeMint) revert MintFailed();
+
+        /**
+         * Send the global minters fee from User to the global minters fee wallet
+         */
+        bool GlobalMintersFee = _mint(zUSD, address(this), globalMintersFeePerTransaction);
+
+        if (!GlobalMintersFee) revert MintFailed();
+
+        for (uint256 i = 0; i < mintersAddresses.length; i++) {
+            mintersRewardPerTransaction[mintersAddresses[i]] =
+                ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
+                    netMintGlobal) *
+                globalMintersFeePerTransaction;
+
+            userAccruedFeeBalance[mintersAddresses[i]] +=
+                mintersRewardPerTransaction[mintersAddresses[i]] /
+                MULTIPLIER;
+
+        }
+        }
 
         return zUSDMintAmount;
     }
@@ -825,6 +890,21 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         Oracle = _address;
 
         emit SetOracleAddress(_address);
+    }
+
+    /**
+    * Returns the USD value of user's collateral
+     */
+    function getUSDValueOfCollateral(uint256 _amount) public returns (uint256) {
+        uint256 USDValue;
+        uint256 rate;
+        uint256 _amountWithDecimal = _getDecimal(_amount);
+
+        rate = BakiOracleInterface(Oracle).collateralUSD();
+
+        USDValue = _amountWithDecimal * rate;
+        USDValue = USDValue / HALF_MULTIPLIER;
+        return USDValue;
     }
 
     /**
@@ -893,10 +973,14 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     /**
      * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
      */
-    function _testImpact() internal view returns (bool) {
+    function _testImpact() internal returns (bool) {
         uint256 userDebt;
+        uint256 USDValueOfCollateral;
+        
+        USDValueOfCollateral = getUSDValueOfCollateral(userCollateralBalance[msg.sender]);
+        
         /**
-         * If the netMintGlobal is 0, then
+         * If the netMintGlobal is 0, then debt doesn't exist
          */
         if (netMintGlobal != 0) {
             require(
@@ -913,11 +997,11 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
                 COLLATERIZATION_RATIO_THRESHOLD) / 1e3;
 
             require(
-                userCollateralBalance[msg.sender] >=
-                    collateralRatioMultipliedByDebt,
+                USDValueOfCollateral >= collateralRatioMultipliedByDebt,
                 "User does not have sufficient collateral to cover this transaction"
             );
         }
+
         return true;
     }
 }
