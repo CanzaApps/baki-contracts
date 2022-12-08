@@ -14,7 +14,7 @@ contract BakiOracle is Ownable, BakiOracleInterface {
         NGNUSD = _value;
     }
 
-    function setXAFUSD(uint256 _value) external {
+    function setXAFUSD(uint256 _value) external onlyOwner {
         XAFUSD = _value;
     }
 
