@@ -22,11 +22,6 @@ jobs:
         sarif: outputs.sarif
         fail-on: none
 
-    - if: failure()
-      uses: Ayrx/sarif_to_github_annotations@v0.2.0
-      with:
-        sarif_file: semgrep.sarif
-
     - name: Upload SARIF file
       uses: github/codeql-action/upload-sarif@v2
       with:
