@@ -220,7 +220,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         if (!transferSuccess) revert();
 
         userCollateralBalance[msg.sender] += _depositAmountWithDecimal;
-
         /**
          * if this is user's first mint, add to minters list
          */
@@ -502,14 +501,17 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             userAccruedFeeBalance[msg.sender] > 0,
             "User has no accumulated rewards"
         );
+        uint256 amount;
+
+        amount = userAccruedFeeBalance[msg.sender];
+        userAccruedFeeBalance[msg.sender] = 0;
 
         bool transferSuccess = IERC20Upgradeable(zUSD).transfer(
             msg.sender,
-            userAccruedFeeBalance[msg.sender]
+            amount
         );
         if (!transferSuccess) revert();
 
-        userAccruedFeeBalance[msg.sender] = 0;
     }
 
     /**
