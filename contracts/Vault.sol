@@ -441,11 +441,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             IERC20Upgradeable(zUSD).balanceOf(msg.sender) >= userDebt,
             "Liquidator does not have sufficient zUSD to repay debt"
         );
-
-        bool burnSuccess = _burn(zUSD, msg.sender, userDebt);
-
-        if (!burnSuccess) revert();
-
         // _testImpact(zNGNUSDRate, zXAFUSDRate, zZARUSDRate);
 
         /**
@@ -460,31 +455,36 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
         netMintUser[_user] = 0;
 
+        bool burnSuccess = _burn(zUSD, msg.sender, userDebt);
+
+        if (!burnSuccess) revert();
+
          /**
          * Possible overflow
          */
-              if (userCollateralBalance[_user] <= totalRewards) {
-            bool transferSuccess = IERC20Upgradeable(collateral).transfer(
-            msg.sender,
-            userCollateralBalance[_user]
-        );
+        if (userCollateralBalance[_user] <= totalRewards) {
 
-        if (!transferSuccess) revert();
+            totalRewards = userCollateralBalance[_user];
+            userCollateralBalance[_user] = 0;
 
-        userCollateralBalance[_user] = 0;
-
-        } else {
-            
             bool transferSuccess = IERC20Upgradeable(collateral).transfer(
             msg.sender,
             totalRewards
-        );
+                );
 
-        if (!transferSuccess) revert();
+            if (!transferSuccess) revert();
 
-        userCollateralBalance[_user] =
-                userCollateralBalance[_user] -
-                totalRewards;
+        } else {
+            
+            userCollateralBalance[_user] -= totalRewards;
+
+            bool transferSuccess = IERC20Upgradeable(collateral).transfer(
+            msg.sender,
+            totalRewards
+            );
+
+            if (!transferSuccess) revert();
+
         }
 
         emit Liquidate(_user, userDebt, totalRewards, msg.sender);
