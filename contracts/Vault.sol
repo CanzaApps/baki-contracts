@@ -98,7 +98,8 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         address _zNGN, 
         address _zXAF, 
         address _zZAR,
-        address _oracle
+        address _oracle,
+        address _collateral
         ) public initializer {
         COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
         LIQUIDATION_REWARD = 10;
@@ -113,6 +114,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         zXAF = _zXAF;
         zZAR = _zZAR;
         Oracle = _oracle;
+        collateral = _collateral;
     }
 
     /**
@@ -215,7 +217,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             _depositAmountWithDecimal
         );
 
-        if (!transferSuccess) revert TransferFailed();
+        if (!transferSuccess) revert();
 
         userCollateralBalance[msg.sender] += _depositAmountWithDecimal;
 
@@ -228,7 +230,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
         bool mintSuccess = _mint(zUSD, msg.sender, _mintAmountWithDecimal);
 
-        if (!mintSuccess) revert MintFailed();
+        if (!mintSuccess) revert();
 
         netMintUser[msg.sender] += _mintAmountWithDecimal;
         grossMintUser[msg.sender] += _mintAmountWithDecimal;
@@ -287,11 +289,11 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
         bool burnSuccess = _burn(_zTokenFrom, msg.sender, _amountWithDecimal);
 
-        if (!burnSuccess) revert BurnFailed();
+        if (!burnSuccess) revert();
 
         bool mintSuccess = _mint(_zTokenTo, msg.sender, mintAmount);
 
-        if (!mintSuccess) revert MintFailed();
+        if (!mintSuccess) revert();
 
         /**
          * Handle swap fees and rewards
@@ -378,7 +380,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
         bool burnSuccess = _burn(zUSD, msg.sender, amountToRepayinUSD);
 
-        if (!burnSuccess) revert BurnFailed();
+        if (!burnSuccess) revert();
 
         /**
          * Test impact after burn
@@ -393,7 +395,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             _amountToWithdrawWithDecimal
         );
 
-        if (!transferSuccess) revert TransferFailed();
+        if (!transferSuccess) revert();
 
         _testImpact();
 
@@ -442,7 +444,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
         bool burnSuccess = _burn(zUSD, msg.sender, userDebt);
 
-        if (!burnSuccess) revert BurnFailed();
+        if (!burnSuccess) revert();
 
         // _testImpact(zNGNUSDRate, zXAFUSDRate, zZARUSDRate);
 
@@ -467,7 +469,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             userCollateralBalance[_user]
         );
 
-        if (!transferSuccess) revert TransferFailed();
+        if (!transferSuccess) revert();
 
         userCollateralBalance[_user] = 0;
 
@@ -478,7 +480,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             totalRewards
         );
 
-        if (!transferSuccess) revert TransferFailed();
+        if (!transferSuccess) revert();
 
         userCollateralBalance[_user] =
                 userCollateralBalance[_user] -
@@ -505,7 +507,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             msg.sender,
             userAccruedFeeBalance[msg.sender]
         );
-        if (!transferSuccess) revert TransferFailed();
+        if (!transferSuccess) revert();
 
         userAccruedFeeBalance[msg.sender] = 0;
     }
