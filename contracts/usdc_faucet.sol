@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-interface CUSDInterface {
+interface USDCInterface {
     /**
      * @dev Amount of zTokens to be minted for a user
      * requires onlyVault modifier
@@ -17,21 +17,21 @@ interface CUSDInterface {
     function burn(address _address, uint256 _amount) external returns (bool);
 }
 
-contract CUSDFaucet is Ownable {
-    address public cUSD;
+contract USDCFaucet is Ownable {
+    address public USDC;
 
-    event SetCUSD(address _address);
+    event SetUSDC(address _address);
 
-    function setCUSD(address _address) public onlyOwner {
+    function setUSDC(address _address) public onlyOwner {
         require(_address != address(0), "address cannot be a zero address");
 
-        cUSD = _address;
+        USDC = _address;
 
-        emit SetCUSD(_address);
+        emit SetUSDC(_address);
     }
 
-    function getCUSD(address receiver) public returns(bool) {
-        bool success = CUSDInterface(cUSD).mint(receiver, 1000000000 ether);
+    function getUSDC(address receiver) public returns (bool) {
+        bool success = USDCInterface(USDC).mint(receiver, 1000000000 ether);
 
         return success;
     }
