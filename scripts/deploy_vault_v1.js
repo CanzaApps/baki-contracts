@@ -25,6 +25,18 @@ async function deployOracle(){
 
 }
 
+async function deployCollateral() {
+  const Cusd = await ethers.getContractFactory("USDC");
+  console.log(`deploying USDC`);
+
+  const usdc = await Cusd.deploy();
+
+  await usdc.deployed();
+
+  console.log(`USDC collateral is deployed at ${usdc.address}`);
+  return usdc.address;
+}
+
 async function main() {
   const Vault = await ethers.getContractFactory("Vault");
 
@@ -34,11 +46,13 @@ const zNGN = await deployToken("zNGN", "zNGN");
 const zZAR = await deployToken("zZAR", "zZAR");
 const zXAF = await deployToken("zXAF", "zXAF");
 
+const collateral = await deployCollateral();
+
 const Oracle = await deployOracle();
 
 console.log("Deploying Vault...");
 
-  const vault = await upgrades.deployProxy(Vault, [zUSD, zNGN, zXAF, zZAR, Oracle], {
+  const vault = await upgrades.deployProxy(Vault, [zUSD, zNGN, zXAF, zZAR, Oracle, collateral], {
     initializer: "vault_init",
   });
 
