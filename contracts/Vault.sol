@@ -8,7 +8,7 @@
 
 pragma solidity ^0.8.17;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -88,6 +88,8 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     address[] public _blacklistedAddresses;
 
     bool public transactionsPaused;
+
+    address[] public usersInLiquidationZone;
 
        /**
     * Initializers
@@ -205,13 +207,13 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         uint256 _mintAmountWithDecimal = _getDecimal(_mintAmount);
 
         require(
-            IERC20Upgradeable(collateral).balanceOf(msg.sender) >=
+            IERC20(collateral).balanceOf(msg.sender) >=
                 _depositAmountWithDecimal,
             "Insufficient balance"
         );
 
         // transfer cUSD tokens from user wallet to vault contract
-        bool transferSuccess = IERC20Upgradeable(collateral).transferFrom(
+        bool transferSuccess = IERC20(collateral).transferFrom(
             msg.sender,
             address(this),
             _depositAmountWithDecimal
@@ -262,7 +264,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         uint256 treasuryFeePerTransaction;
 
         require(
-            IERC20Upgradeable(_zTokenFrom).balanceOf(msg.sender) >= _amountWithDecimal,
+            IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amountWithDecimal,
             "Insufficient balance"
         );
         uint256 _zTokenFromUSDRate = getZTokenUSDRate(_zTokenFrom);
@@ -389,7 +391,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
          */
         userCollateralBalance[msg.sender] -= _amountToWithdrawWithDecimal;
 
-        bool transferSuccess = IERC20Upgradeable(collateral).transfer(
+        bool transferSuccess = IERC20(collateral).transfer(
             msg.sender,
             _amountToWithdrawWithDecimal
         );
@@ -402,8 +404,10 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     }
 
     function liquidate(address _user) external nonReentrant blockBlacklistedAddresses() isTransactionsPaused() {
-        uint256 userDebt;
-        uint256 userCollateralRatio;
+         uint256 userDebt;
+        
+        bool isUserInLiquidationZone = checkUserForLiquidation(_user);
+        require(isUserInLiquidationZone == true, "User is not in the liquidation zone");
 
         /**
          * Update the user's debt balance with latest price feeds
@@ -414,48 +418,24 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         );
 
         /**
-         * Ensure user has debt before progressing
-         * Update user's collateral ratio
-         */
-        require(userDebt > 0, "User has no debt");
-
-        userCollateralRatio =
-            1e3 *
-            WadRayMath.wadDiv(userCollateralBalance[_user], userDebt);
-
-        userCollateralRatio = userCollateralRatio / MULTIPLIER;
-        /**
-         * User collateral ratio must be lower than healthy threshold for liquidation to occur
-         */
-        require(
-            userCollateralRatio < COLLATERIZATION_RATIO_THRESHOLD,
-            "User has a healthy collateral ratio"
-        );
-
-        /**
          * check if the liquidator has sufficient zUSD to repay the debt
          * burn the zUSD
          */
         require(
-            IERC20Upgradeable(zUSD).balanceOf(msg.sender) >= userDebt,
+            IERC20(zUSD).balanceOf(msg.sender) >= userDebt,
             "Liquidator does not have sufficient zUSD to repay debt"
         );
-        // _testImpact(zNGNUSDRate, zXAFUSDRate, zZARUSDRate);
-
+       
         /**
          * Get reward fee
          * Send the equivalent of debt as collateral and also a 10% fee to the liquidator
          */
-        uint256 rewardFee = (userDebt * LIQUIDATION_REWARD) / 100;
-
-        uint256 totalRewards = userDebt + rewardFee;
+        uint totalRewards = getPotentialTotalReward(_user, userDebt);
 
         netMintGlobal = netMintGlobal - netMintUser[_user];
-
         netMintUser[_user] = 0;
 
         bool burnSuccess = _burn(zUSD, msg.sender, userDebt);
-
         if (!burnSuccess) revert();
 
          /**
@@ -466,7 +446,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             totalRewards = userCollateralBalance[_user];
             userCollateralBalance[_user] = 0;
 
-            bool transferSuccess = IERC20Upgradeable(collateral).transfer(
+            bool transferSuccess = IERC20(collateral).transfer(
             msg.sender,
             totalRewards
                 );
@@ -477,7 +457,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             
             userCollateralBalance[_user] -= totalRewards;
 
-            bool transferSuccess = IERC20Upgradeable(collateral).transfer(
+            bool transferSuccess = IERC20(collateral).transfer(
             msg.sender,
             totalRewards
             );
@@ -506,7 +486,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         amount = userAccruedFeeBalance[msg.sender];
         userAccruedFeeBalance[msg.sender] = 0;
 
-        bool transferSuccess = IERC20Upgradeable(zUSD).transfer(
+        bool transferSuccess = IERC20(zUSD).transfer(
             msg.sender,
             amount
         );
@@ -515,10 +495,75 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     }
 
     /**
+     * Get potential total rewards from user in liquidation zone
+     */
+    function getPotentialTotalReward(address _user, uint256 _userDebt) public view returns (uint256) {
+        bool isUserInLiquidationZone = checkUserForLiquidation(_user);
+
+        require(isUserInLiquidationZone == true, "User is not in the liquidation zone");
+        require(_userDebt > 0, "User has no debt");
+
+        uint256 rewardFee = (_userDebt * LIQUIDATION_REWARD) / 100;
+
+        uint256 totalRewards = _userDebt + rewardFee;
+
+        return totalRewards;
+    }
+
+    /**
+     * Get a list of liquidated users
+     */
+    function getUsersInLiquidationZone() external returns (address[] memory) {
+        
+        for(uint256 i = 0; i < mintersAddresses.length; i++) {
+            bool isUserInLiquidationZone = checkUserForLiquidation(mintersAddresses[i]);
+
+            if (isUserInLiquidationZone == true) {
+                usersInLiquidationZone.push(mintersAddresses[i]);
+            }
+        }
+        return usersInLiquidationZone;
+    }
+
+    /**
+     * Check User for liquidation
+     */
+    function checkUserForLiquidation(address _user) public view returns (bool) {
+        uint256 userDebt;
+        uint256 userCollateralRatio;
+
+        /**
+         * Update the user's debt balance with latest price feeds
+         */
+        userDebt = _updateUserDebtOutstanding(
+            netMintUser[_user],
+            netMintGlobal
+        );
+
+        /**
+         * Ensure user has debt before progressing
+         * Update user's collateral ratio
+         */
+        require(userDebt > 0, "User has no debt");
+
+        userCollateralRatio =
+            1e3 *
+            WadRayMath.wadDiv(userCollateralBalance[_user], userDebt);
+
+        userCollateralRatio = userCollateralRatio / MULTIPLIER;
+
+        if (userCollateralRatio > COLLATERIZATION_RATIO_THRESHOLD){
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Get user balance
      */
     function getBalance(address _token) external view returns (uint256) {
-        return IERC20Upgradeable(_token).balanceOf(msg.sender);
+        return IERC20(_token).balanceOf(msg.sender);
     }
 
     /**
@@ -688,7 +733,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     else { transactionsPaused = false; }
 
     emit PauseTransactions();
-}
+    }
 
     /**
      * Change swap variables
@@ -743,7 +788,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
      * Get Total Supply of zTokens
      */
     function getTotalSupply(address _address) external view returns (uint256) {
-        return IERC20Upgradeable(_address).totalSupply();
+        return IERC20(_address).totalSupply();
     }
 
     /**
@@ -783,7 +828,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         internal
         returns (uint256)
     {
-        // require(IERC20Upgradeable(_zToken).balanceOf(msg.sender) >= _amount, "Insufficient balance");
+        // require(IERC20(_zToken).balanceOf(msg.sender) >= _amount, "Insufficient balance");
         uint256 zUSDMintAmount = _amount;
         uint256 swapFeePerTransactionInUsd;
         uint256 swapFeePerTransaction;
@@ -950,10 +995,10 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         uint256 mintRatio;
 
         globalDebt =
-            (IERC20Upgradeable(zUSD).totalSupply() * HALF_MULTIPLIER) +
-            WadRayMath.wadDiv(IERC20Upgradeable(zNGN).totalSupply(), BakiOracleInterface(Oracle).NGNUSD()) +
-            WadRayMath.wadDiv(IERC20Upgradeable(zXAF).totalSupply(), BakiOracleInterface(Oracle).XAFUSD()) +
-            WadRayMath.wadDiv(IERC20Upgradeable(zZAR).totalSupply(), BakiOracleInterface(Oracle).ZARUSD());
+            (IERC20(zUSD).totalSupply() * HALF_MULTIPLIER) +
+            WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), BakiOracleInterface(Oracle).NGNUSD()) +
+            WadRayMath.wadDiv(IERC20(zXAF).totalSupply(), BakiOracleInterface(Oracle).XAFUSD()) +
+            WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), BakiOracleInterface(Oracle).ZARUSD());
 
         // globalDebt = globalDebt / HALF_MULTIPLIER;
 
