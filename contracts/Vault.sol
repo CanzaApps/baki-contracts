@@ -91,6 +91,10 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
     address[] public usersInLiquidationZone;
 
+    uint256 public totalCollateral;
+
+    uint256 public totalSwapVolume;
+
        /**
     * Initializers
      */
@@ -222,6 +226,8 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         if (!transferSuccess) revert();
 
         userCollateralBalance[msg.sender] += _depositAmountWithDecimal;
+
+        totalCollateral += _depositAmountWithDecimal;
         /**
          * if this is user's first mint, add to minters list
          */
@@ -262,6 +268,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         uint256 swapFeePerTransaction;
         uint256 globalMintersFeePerTransaction;
         uint256 treasuryFeePerTransaction;
+        uint256 swapAmountInUSD;
 
         require(
             IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amountWithDecimal,
@@ -287,6 +294,13 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             swapAmount *
             WadRayMath.wadDiv(_zTokenToUSDRate, _zTokenFromUSDRate);
         mintAmount = mintAmount / MULTIPLIER;
+
+        /**
+         * Track the USD value of the swap amount
+         */
+        swapAmountInUSD = _amountWithDecimal / _zTokenFromUSDRate;
+
+        totalSwapVolume += swapAmountInUSD; 
 
         bool burnSuccess = _burn(_zTokenFrom, msg.sender, _amountWithDecimal);
 
@@ -592,6 +606,20 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     }
 
     /**
+     * Get total collateral value
+     */
+    function getTotalCollateral() external view returns (uint256) {
+        return totalCollateral;
+    }
+
+    /**
+     * Get total swap volume (in USD)
+     */
+    function getTotalSwapVolume() external view returns (uint256) {
+        return totalSwapVolume;
+    }
+
+    /**
      * Add collateral address
      */
     function addCollateralAddress(address _address) external onlyOwner {
@@ -859,7 +887,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         */
         zUSDMintAmount = _amount - swapFeePerTransaction;
         
-        zUSDMintAmount = _amount * 1 * HALF_MULTIPLIER;
+        zUSDMintAmount = zUSDMintAmount * 1 * HALF_MULTIPLIER;
 
         zUSDMintAmount = zUSDMintAmount / zTokenUSDRate;
 
