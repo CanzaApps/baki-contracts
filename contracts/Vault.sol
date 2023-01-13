@@ -261,14 +261,14 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         address _zTokenFrom,
         address _zTokenTo
     ) external nonReentrant blockBlacklistedAddresses() isTransactionsPaused() {
-        uint256 _amountWithDecimal = _getDecimal(_amount);
-        uint256 swapFeePerTransactionInUsd;
-        uint256 swapAmount;
-        uint256 mintAmount;
-        uint256 swapFeePerTransaction;
-        uint256 globalMintersFeePerTransaction;
-        uint256 treasuryFeePerTransaction;
-        uint256 swapAmountInUSD;
+        uint256 memory _amountWithDecimal = _getDecimal(_amount);
+        uint256 memory swapFeePerTransactionInUsd;
+        uint256 memory swapAmount;
+        uint256 memory mintAmount;
+        uint256 memory swapFeePerTransaction;
+        uint256 memory globalMintersFeePerTransaction;
+        uint256 memory treasuryFeePerTransaction;
+        uint256 memory swapAmountInUSD;
 
         require(
             IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amountWithDecimal,
