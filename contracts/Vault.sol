@@ -716,7 +716,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     * Check for blacklisted address
      */
     function checkForBlacklistedAddress(address _address) public view returns(bool) {
-         for(uint256 i = 0; i <= _blacklistedAddresses.length - 1; i++){
+         for(uint256 i = 0; i < _blacklistedAddresses.length; i++){
 
             if(_blacklistedAddresses[i] == _address){
 
@@ -738,7 +738,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
         uint256 index;
 
-        for(uint256 i = 0; i <= _blacklistedAddresses.length - 1; i++){
+        for(uint256 i = 0; i < _blacklistedAddresses.length; i++){
 
             if(_blacklistedAddresses[i] == _address){
 
