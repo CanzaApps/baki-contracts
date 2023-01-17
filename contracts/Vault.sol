@@ -513,6 +513,8 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
      * Get potential total rewards from user in liquidation zone
      */
     function getPotentialTotalReward(address _user, uint256 _userDebt) public view returns (uint256) {
+        require(_user != address(0), "address cannot be a zero address");
+
         bool isUserInLiquidationZone = checkUserForLiquidation(_user);
 
         require(isUserInLiquidationZone == true, "User is not in the liquidation zone");
@@ -526,24 +528,74 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     }
 
     /**
-     * Get a list of liquidated users
+     * Adds and removes users in Liquidation zone
      */
-    function getUsersInLiquidationZone() external returns (address[] memory) {
+    function manageUsersInLiquidationZone() external onlyOwner returns (address[] memory) {
         
         for(uint256 i = 0; i < mintersAddresses.length; i++) {
             bool isUserInLiquidationZone = checkUserForLiquidation(mintersAddresses[i]);
+            bool isUserAlreadyInLiquidationArray = _checkIfUserAlreadyExistsInLiquidationList(mintersAddresses[i]);
 
-            if (isUserInLiquidationZone == true) {
+            // If a user is in liquidation zone and not in the liquidation list, add user to the list
+            if (isUserInLiquidationZone == true && isUserAlreadyInLiquidationArray == false){
                 usersInLiquidationZone.push(mintersAddresses[i]);
+            }
+            
+            // If the user is not/ no longer in the liquidation zone but still in the list, remove from the list
+            if (isUserInLiquidationZone == false && isUserAlreadyInLiquidationArray == true){
+                _removeUserFromLiquidationList(mintersAddresses[i]);
             }
         }
         return usersInLiquidationZone;
+    }
+
+    function getUserFromLiquidationZone() external view returns (address[] memory) {
+        return usersInLiquidationZone;
+    }
+
+    /**
+     * Helper function to check that a user is already present in liquidation list
+     */
+    function _checkIfUserAlreadyExistsInLiquidationList(address _user) internal view returns (bool) {
+         require(_user != address(0), "address cannot be a zero address");
+        
+        for(uint256 i = 0; i < usersInLiquidationZone.length; i++) {
+            if(usersInLiquidationZone[i] == _user) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Helper function to remove a user from the liquidation list
+     */
+    function _removeUserFromLiquidationList(address _user) internal onlyOwner {
+         require(_user != address(0), "address cannot be a zero address");
+
+         bool isUserAlreadyInLiquidationArray = _checkIfUserAlreadyExistsInLiquidationList(_user);
+
+         require(isUserAlreadyInLiquidationArray == true, "user is not in the liquidation zone");
+
+         uint256 index;
+
+         for(uint256 i = 0; i < usersInLiquidationZone.length; i++){
+            if(usersInLiquidationZone[i] == _user){
+                index = i;
+            }
+         }
+
+         usersInLiquidationZone[index] = usersInLiquidationZone[usersInLiquidationZone.length - 1];
+
+         usersInLiquidationZone.pop();
     }
 
     /**
      * Check User for liquidation
      */
     function checkUserForLiquidation(address _user) public view returns (bool) {
+        require(_user != address(0), "address cannot be a zero address");
+
         uint256 userDebt;
         uint256 userCollateralRatio;
 
@@ -739,9 +791,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         uint256 index;
 
         for(uint256 i = 0; i < _blacklistedAddresses.length; i++){
-
             if(_blacklistedAddresses[i] == _address){
-
                 index = i;
             }
         }
