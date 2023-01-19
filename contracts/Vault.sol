@@ -958,6 +958,19 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     }
 
     /**
+     * Get Global Debt
+     */
+     function getGlobalDebt() public view returns(uint256){
+         uint256 globalDebt =
+            (IERC20(zUSD).totalSupply() * HALF_MULTIPLIER) +
+            WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), BakiOracleInterface(Oracle).NGNUSD()) +
+            WadRayMath.wadDiv(IERC20(zXAF).totalSupply(), BakiOracleInterface(Oracle).XAFUSD()) +
+            WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), BakiOracleInterface(Oracle).ZARUSD());
+
+        return globalDebt;
+     }
+
+    /**
      * Get User Outstanding Debt
      */
 
@@ -969,17 +982,9 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             _netMintGlobalzUSDValue > 0,
             "Global zUSD mint too low, underflow may occur"
         );
-        uint256 globalDebt;
+        uint256 globalDebt = getGlobalDebt();
         uint256 userDebtOutstanding;
         uint256 mintRatio;
-
-        globalDebt =
-            (IERC20(zUSD).totalSupply() * HALF_MULTIPLIER) +
-            WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), BakiOracleInterface(Oracle).NGNUSD()) +
-            WadRayMath.wadDiv(IERC20(zXAF).totalSupply(), BakiOracleInterface(Oracle).XAFUSD()) +
-            WadRayMath.wadDiv(IERC20(zZAR).totalSupply(), BakiOracleInterface(Oracle).ZARUSD());
-
-        // globalDebt = globalDebt / HALF_MULTIPLIER;
 
         mintRatio = WadRayMath.wadDiv(
             _netMintUserzUSDValue,
