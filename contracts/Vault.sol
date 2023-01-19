@@ -96,7 +96,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     uint256 private swapAmountInUSD;
 
     uint256 public totalSwapVolume;
-
        /**
     * Initializers
      */
@@ -108,7 +107,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         address _zZAR,
         address _oracle,
         address _collateral
-        ) public initializer {
+        ) external initializer {
         COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
         LIQUIDATION_REWARD = 10;
         treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
@@ -123,23 +122,8 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         zZAR = _zZAR;
         Oracle = _oracle;
         collateral = _collateral;
-    }
 
-    /**
-    * @dev modifier to check for blacklisted addresses
-     */
-    modifier blockBlacklistedAddresses() {
-        for (uint i = 0; i < _blacklistedAddresses.length; i++) {
-            if (msg.sender == _blacklistedAddresses[i]) {
-                revert("This address has been blacklisted");
-            }
-        }
-        _;
-    }
-
-    modifier isTransactionsPaused() {
-        require(transactionsPaused == false, "transactions are paused");
-        _;
+        __Ownable_init();
     }
 
     /**
@@ -171,14 +155,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
     event AddCollateralAddress(address _address);
 
-    event AddZUSDAddress(address _address);
-
-    event AddZNGNAddress(address _address);
-
-    event AddZXAFAddress(address _address);
-
-    event AddZZARAddress(address _address);
-
     event SetCollaterizationRatioThreshold(uint256 _value);
 
     event SetLiquidationReward(uint256 _value);
@@ -207,8 +183,10 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
      */
     function depositAndMint(uint256 _depositAmount, uint256 _mintAmount)
         external
-        nonReentrant blockBlacklistedAddresses() isTransactionsPaused()
+        nonReentrant
     {
+        blockBlacklistedAddresses();
+        isTransactionsPaused();
         uint256 _depositAmountWithDecimal = _getDecimal(_depositAmount);
         uint256 _mintAmountWithDecimal = _getDecimal(_mintAmount);
 
@@ -237,9 +215,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
             mintersAddresses.push(msg.sender);
         }
 
-        bool mintSuccess = _mint(zUSD, msg.sender, _mintAmountWithDecimal);
-
-        if (!mintSuccess) revert();
+        _mint(zUSD, msg.sender, _mintAmountWithDecimal);
 
         netMintUser[msg.sender] += _mintAmountWithDecimal;
         grossMintUser[msg.sender] += _mintAmountWithDecimal;
@@ -262,7 +238,10 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         uint256 _amount,
         address _zTokenFrom,
         address _zTokenTo
-    ) external nonReentrant blockBlacklistedAddresses() isTransactionsPaused() {
+    ) external nonReentrant {
+        blockBlacklistedAddresses();
+        isTransactionsPaused();
+
         uint256 _amountWithDecimal = _getDecimal(_amount);
         uint256 swapFeePerTransactionInUsd;
         uint256 swapAmount;
@@ -303,13 +282,9 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
         totalSwapVolume += swapAmountInUSD; 
 
-        bool burnSuccess = _burn(_zTokenFrom, msg.sender, _amountWithDecimal);
+        _burn(_zTokenFrom, msg.sender, _amountWithDecimal);
 
-        if (!burnSuccess) revert();
-
-        bool mintSuccess = _mint(_zTokenTo, msg.sender, mintAmount);
-
-        if (!mintSuccess) revert();
+        _mint(_zTokenTo, msg.sender, mintAmount);
 
         /**
          * Handle swap fees and rewards
@@ -329,16 +304,12 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         /**
          * Send the treasury amount to a treasury wallet
          */
-        bool treasuryFeeMint = _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
-
-        if (!treasuryFeeMint) revert MintFailed();
+        _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
 
         /**
          * Send the global minters fee from User to the global minters fee wallet
          */
-        bool GlobalMintersFee = _mint(zUSD, address(this), globalMintersFeePerTransaction);
-
-        if (!GlobalMintersFee) revert MintFailed();
+        _mint(zUSD, address(this), globalMintersFeePerTransaction);
 
         for (uint256 i = 0; i < mintersAddresses.length; i++) {
             mintersRewardPerTransaction[mintersAddresses[i]] =
@@ -360,7 +331,10 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         uint256 _amountToRepay,
         uint256 _amountToWithdraw,
         address _zToken
-    ) external nonReentrant blockBlacklistedAddresses() isTransactionsPaused() {
+    ) external nonReentrant {
+        blockBlacklistedAddresses();
+        isTransactionsPaused();
+
         uint256 _amountToRepayWithDecimal = _getDecimal(_amountToRepay);
         uint256 _amountToWithdrawWithDecimal = _getDecimal(_amountToWithdraw);
 
@@ -394,9 +368,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
         netMintGlobal -= amountToSubtract;
 
-        bool burnSuccess = _burn(zUSD, msg.sender, amountToRepayinUSD);
-
-        if (!burnSuccess) revert();
+        _burn(zUSD, msg.sender, amountToRepayinUSD);
 
         /**
          * Test impact after burn
@@ -418,7 +390,10 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
     }
 
-    function liquidate(address _user) external nonReentrant blockBlacklistedAddresses() isTransactionsPaused() {
+    function liquidate(address _user) external nonReentrant {
+        blockBlacklistedAddresses();
+        isTransactionsPaused();
+
          uint256 userDebt;
         
         bool isUserInLiquidationZone = checkUserForLiquidation(_user);
@@ -445,16 +420,15 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
          * Get reward fee
          * Send the equivalent of debt as collateral and also a 10% fee to the liquidator
          */
-        uint totalRewards = getPotentialTotalReward(_user, userDebt);
+        uint totalRewards = getPotentialTotalReward(_user);
 
         netMintGlobal = netMintGlobal - netMintUser[_user];
         netMintUser[_user] = 0;
 
-        bool burnSuccess = _burn(zUSD, msg.sender, userDebt);
-        if (!burnSuccess) revert();
-
+        _burn(zUSD, msg.sender, userDebt);
+      
          /**
-         * Possible overflow
+         * Send total ewards to Liquidator
          */
         if (userCollateralBalance[_user] <= totalRewards) {
 
@@ -482,10 +456,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         }
 
         emit Liquidate(_user, userDebt, totalRewards, msg.sender);
-
-        /**
-         * @TODO - netMintGlobal = netMintGlobal - netMintUser, Update users collateral balance by substracting the totalRewards, netMintUser = 0, userDebtOutstanding = 0
-         */
     }
 
     /**
@@ -512,10 +482,14 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     /**
      * Get potential total rewards from user in liquidation zone
      */
-    function getPotentialTotalReward(address _user, uint256 _userDebt) public view returns (uint256) {
-        require(_user != address(0), "address cannot be a zero address");
-
+    function getPotentialTotalReward(address _user) public view returns (uint256) {
+      
         bool isUserInLiquidationZone = checkUserForLiquidation(_user);
+
+        uint256 _userDebt = _updateUserDebtOutstanding(
+            netMintUser[_user],
+            netMintGlobal
+        );
 
         require(isUserInLiquidationZone == true, "User is not in the liquidation zone");
         require(_userDebt > 0, "User has no debt");
@@ -557,8 +531,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
      * Helper function to check that a user is already present in liquidation list
      */
     function _checkIfUserAlreadyExistsInLiquidationList(address _user) internal view returns (bool) {
-         require(_user != address(0), "address cannot be a zero address");
-        
+         
         for(uint256 i = 0; i < usersInLiquidationZone.length; i++) {
             if(usersInLiquidationZone[i] == _user) {
                 return true;
@@ -571,8 +544,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
      * Helper function to remove a user from the liquidation list
      */
     function _removeUserFromLiquidationList(address _user) internal onlyOwner {
-         require(_user != address(0), "address cannot be a zero address");
-
+         
          bool isUserAlreadyInLiquidationArray = _checkIfUserAlreadyExistsInLiquidationList(_user);
 
          require(isUserAlreadyInLiquidationArray == true, "user is not in the liquidation zone");
@@ -659,66 +631,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     }
 
     /**
-     * Get total collateral value
-     */
-    function getTotalCollateral() external view returns (uint256) {
-        return totalCollateral;
-    }
-
-    /**
-     * Get total swap volume (in USD)
-     */
-    function getTotalSwapVolume() external view returns (uint256) {
-        return totalSwapVolume;
-    }
-
-    /**
-     * Add collateral address
-     */
-    function addCollateralAddress(address _address) external onlyOwner {
-        require(_address != address(0), "address cannot be a zero address");
-
-        collateral = _address;
-
-        emit AddCollateralAddress(_address);
-    }
-
-    /**
-     * Add the four zToken contract addresses
-     */
-    function addZUSDAddress(address _address) external onlyOwner {
-        require(_address != address(0), "address cannot be a zero address");
-
-        zUSD = _address;
-
-        emit AddZUSDAddress(_address);
-    }
-
-    function addZNGNAddress(address _address) external onlyOwner {
-        require(_address != address(0), "address cannot be a zero address");
-
-        zNGN = _address;
-
-        emit AddZNGNAddress(_address);
-    }
-
-    function addZXAFAddress(address _address) external onlyOwner {
-        require(_address != address(0), "address cannot be a zero address");
-
-        zXAF = _address;
-
-        emit AddZXAFAddress(_address);
-    }
-
-    function addZZARAddress(address _address) external onlyOwner {
-        require(_address != address(0), "address cannot be a zero address");
-
-        zZAR = _address;
-
-        emit AddZZARAddress(_address);
-    }
-
-    /**
      * set collaterization ratio threshold
      */
     function setCollaterizationRatioThreshold(uint256 _value)
@@ -746,8 +658,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     * Add to blacklist
      */
     function addAddressToBlacklist(address _address) external onlyOwner {
-        require(_address != address(0), "address cannot be a zero address");
-
+       
          bool isAddressBlacklisted = checkForBlacklistedAddress(_address);
         
         require(isAddressBlacklisted == false, "address is already a blacklisted address");
@@ -782,8 +693,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     * Remove from blacklist
      */
     function removeAddressFromBlacklist(address _address) external onlyOwner {
-        require(_address != address(0), "address cannot be a zero address");
-
+    
         bool isAddressBlacklisted = checkForBlacklistedAddress(_address);
         
         require(isAddressBlacklisted == true, "address is not a blacklisted address");
@@ -884,20 +794,20 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         address _tokenAddress,
         address _userAddress,
         uint256 _amount
-    ) internal returns (bool) {
+    ) internal {
         bool success = ZTokenInterface(_tokenAddress).mint(_userAddress, _amount);
 
-        return success;
+        if(!success) revert MintFailed();
     }
 
     function _burn(
         address _tokenAddress,
         address _userAddress,
         uint256 _amount
-    ) internal returns (bool) {
+    ) internal {
         bool success = ZTokenInterface(_tokenAddress).burn(_userAddress, _amount);
 
-        return success;
+        if(!success) revert BurnFailed();
     }
 
     /**
@@ -942,14 +852,9 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
         zUSDMintAmount = zUSDMintAmount / zTokenUSDRate;
 
-        bool burnSuccess = _burn(_zToken, msg.sender, _amount);
+        _burn(_zToken, msg.sender, _amount);
 
-        if(!burnSuccess) revert BurnFailed();
-
-        bool mintSuccess = _mint(zUSD, msg.sender, zUSDMintAmount);
-
-        if(!mintSuccess) revert MintFailed();
-
+        _mint(zUSD, msg.sender, zUSDMintAmount);
          /**
          * Handle swap fees and rewards
          */
@@ -968,16 +873,11 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
          /**
          * Send the treasury amount to a treasury wallet
          */
-        bool treasuryFeeMint = _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
-
-        if (!treasuryFeeMint) revert MintFailed();
-
+        _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
         /**
          * Send the global minters fee from User to the global minters fee wallet
          */
-        bool GlobalMintersFee = _mint(zUSD, address(this), globalMintersFeePerTransaction);
-
-        if (!GlobalMintersFee) revert MintFailed();
+        _mint(zUSD, address(this), globalMintersFeePerTransaction);
 
         for (uint256 i = 0; i < mintersAddresses.length; i++) {
             mintersRewardPerTransaction[mintersAddresses[i]] =
@@ -1051,7 +951,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         } else if (_address == zUSD) {
             zTokenUSDRate = USD;
         } else {
-            revert("Invalid address");
+            revert();
         }
 
         return zTokenUSDRate;
@@ -1095,6 +995,21 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         return userDebtOutstanding;
     }
 
+       /**
+    * @dev modifier to check for blacklisted addresses
+     */
+    function blockBlacklistedAddresses() internal view {
+        for (uint i = 0; i < _blacklistedAddresses.length; i++) {
+            if (msg.sender == _blacklistedAddresses[i]) {
+                revert("address blacklisted");
+            }
+        }
+    }
+
+    function isTransactionsPaused() internal view {
+        require(transactionsPaused == false, "transactions are paused");
+    }
+
     /**
      * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
      */
@@ -1123,10 +1038,11 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
             require(
                 USDValueOfCollateral >= collateralRatioMultipliedByDebt,
-                "User does not have sufficient collateral to cover this transaction"
+                "Insufficient collateral"
             );
         }
 
         return true;
     }
 }
+
