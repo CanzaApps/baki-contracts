@@ -72,8 +72,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
     address public treasuryWallet;
 
-    address public mintersWallet;
-
     uint256 public swapFee;
 
     uint256 public globalMintersPercentOfSwapFee;
@@ -111,7 +109,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
         LIQUIDATION_REWARD = 10;
         treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
-        mintersWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
         swapFee = WadRayMath.wadDiv(3, 1000);
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(3, 4);
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 4);
@@ -166,8 +163,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     event PauseTransactions();
 
     event AddTreasuryWallet(address _address);
-
-    event AddMintersWallet(address _address);
 
     event ChangeSwapFee(uint256 a, uint256 b);
 
@@ -426,7 +421,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         _burn(zUSD, msg.sender, userDebt);
 
         uint totalRewards = getPotentialTotalReward(_user);
-        
+
          /**
          * Send total rewards to Liquidator
          */
@@ -751,14 +746,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         treasuryWallet = _address;
 
         emit AddTreasuryWallet(_address);
-    }
-
-    function addMintersWallet(address _address) external onlyOwner {
-        require(_address != address(0), "address cannot be a zero address");
-
-        mintersWallet = _address;
-
-        emit AddMintersWallet(_address);
     }
 
     function changeSwapFee(uint256 a, uint256 b)
