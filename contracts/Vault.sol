@@ -486,6 +486,8 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
       
         bool isUserInLiquidationZone = checkUserForLiquidation(_user);
 
+        uint256 rate = BakiOracleInterface(Oracle).collateralUSD();
+
         uint256 _userDebt = _updateUserDebtOutstanding(
             netMintUser[_user],
             netMintGlobal
@@ -497,6 +499,10 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         uint256 rewardFee = (_userDebt * LIQUIDATION_REWARD) / 100;
 
         uint256 totalRewards = _userDebt + rewardFee;
+
+        totalRewards = totalRewards / rate;
+
+        totalRewards = totalRewards * HALF_MULTIPLIER;
 
         return totalRewards;
     }
@@ -571,6 +577,11 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         uint256 userDebt;
         uint256 userCollateralRatio;
 
+    /**
+     * Get the USD value of the user's collateral
+     */
+        uint256 USDValueOfCollateral = getUSDValueOfCollateral(userCollateralBalance[_user]);        
+
         /**
          * Update the user's debt balance with latest price feeds
          */
@@ -587,7 +598,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
         userCollateralRatio =
             1e3 *
-            WadRayMath.wadDiv(userCollateralBalance[_user], userDebt);
+            WadRayMath.wadDiv(USDValueOfCollateral, userDebt);
 
         userCollateralRatio = userCollateralRatio / MULTIPLIER;
 
@@ -696,7 +707,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     
         bool isAddressBlacklisted = checkForBlacklistedAddress(_address);
         
-        require(isAddressBlacklisted == true, "address is not a blacklisted address");
+        require(isAddressBlacklisted == true, "not blacklisted address");
 
         uint256 index;
 
@@ -920,14 +931,13 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     /**
     * Returns the USD value of user's collateral
      */
-    function getUSDValueOfCollateral(uint256 _amount) public returns (uint256) {
+    function getUSDValueOfCollateral(uint256 _amount) public view returns (uint256) {
         uint256 USDValue;
         uint256 rate;
-        uint256 _amountWithDecimal = _getDecimal(_amount);
-
+    
         rate = BakiOracleInterface(Oracle).collateralUSD();
 
-        USDValue = _amountWithDecimal * rate;
+        USDValue = _amount * rate;
         USDValue = USDValue / HALF_MULTIPLIER;
         return USDValue;
     }
@@ -960,7 +970,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     /**
      * Get Global Debt
      */
-     function getGlobalDebt() public view returns(uint256){
+    function getGlobalDebt() public view returns(uint256){
          uint256 globalDebt =
             (IERC20(zUSD).totalSupply() * HALF_MULTIPLIER) +
             WadRayMath.wadDiv(IERC20(zNGN).totalSupply(), BakiOracleInterface(Oracle).NGNUSD()) +
@@ -1018,7 +1028,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
     /**
      * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
      */
-    function _testImpact() internal returns (bool) {
+    function _testImpact() internal view returns (bool) {
         uint256 userDebt;
         uint256 USDValueOfCollateral;
         
