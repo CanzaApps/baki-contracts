@@ -420,19 +420,18 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
          * Get reward fee
          * Send the equivalent of debt as collateral and also a 10% fee to the liquidator
          */
-        uint totalRewards = getPotentialTotalReward(_user);
-
         netMintGlobal = netMintGlobal - netMintUser[_user];
         netMintUser[_user] = 0;
 
         _burn(zUSD, msg.sender, userDebt);
-      
+
+        uint totalRewards = getPotentialTotalReward(_user);
+        
          /**
-         * Send total ewards to Liquidator
+         * Send total rewards to Liquidator
          */
         if (userCollateralBalance[_user] <= totalRewards) {
 
-            totalRewards = userCollateralBalance[_user];
             userCollateralBalance[_user] = 0;
 
             bool transferSuccess = IERC20(collateral).transfer(
@@ -498,13 +497,21 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
 
         uint256 rewardFee = (_userDebt * LIQUIDATION_REWARD) / 100;
 
-        uint256 totalRewards = _userDebt + rewardFee;
+        uint256 rewards = _userDebt + rewardFee;
 
-        totalRewards = totalRewards / rate;
+        rewards = rewards * HALF_MULTIPLIER;
 
-        totalRewards = totalRewards * HALF_MULTIPLIER;
+        rewards = rewards / rate;
 
-        return totalRewards;
+         if (userCollateralBalance[_user] <= rewards) {
+
+            return userCollateralBalance[_user];
+
+        } else {
+            
+            return rewards;
+
+        }
     }
 
     /**
