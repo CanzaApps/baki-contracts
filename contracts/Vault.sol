@@ -394,6 +394,8 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         bool isUserInLiquidationZone = checkUserForLiquidation(_user);
         require(isUserInLiquidationZone == true, "User is not in the liquidation zone");
 
+        uint totalRewards = getPotentialTotalReward(_user);
+
         /**
          * Update the user's debt balance with latest price feeds
          */
@@ -419,8 +421,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         netMintUser[_user] = 0;
 
         _burn(zUSD, msg.sender, userDebt);
-
-        uint totalRewards = getPotentialTotalReward(_user);
 
          /**
          * Send total rewards to Liquidator
