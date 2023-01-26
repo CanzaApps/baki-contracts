@@ -252,11 +252,14 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         uint256 _zTokenFromUSDRate = getZTokenUSDRate(_zTokenFrom);
         uint256 _zTokenToUSDRate = getZTokenUSDRate(_zTokenTo);
 
+        _zTokenFromUSDRate = _zTokenFromUSDRate * 1e3;
+        _zTokenToUSDRate = _zTokenToUSDRate * 1e3;
+
         swapFeePerTransaction = swapFee * _amountWithDecimal;
 
         swapFeePerTransaction = swapFeePerTransaction / MULTIPLIER;
 
-        swapFeePerTransactionInUsd = swapFeePerTransaction * HALF_MULTIPLIER;
+        swapFeePerTransactionInUsd = swapFeePerTransaction * MULTIPLIER;
 
         swapFeePerTransactionInUsd = swapFeePerTransactionInUsd / _zTokenFromUSDRate;
        
@@ -273,6 +276,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         /**
          * Track the USD value of the swap amount
          */
+        swapAmountInUSD = _amountWithDecimal * MULTIPLIER;
         swapAmountInUSD = _amountWithDecimal / _zTokenFromUSDRate;
 
         totalSwapVolume += swapAmountInUSD; 
@@ -355,7 +359,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         /**
          * Substract withdraw from current net mint value and assign new mint value
          */
-        
+
          if(userDebt != 0) {
             uint256 amountToSubtract = (netMintUser[msg.sender] *
             amountToRepayinUSD) / userDebt;
