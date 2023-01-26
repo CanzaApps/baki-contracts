@@ -355,13 +355,15 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         /**
          * Substract withdraw from current net mint value and assign new mint value
          */
-
-        uint256 amountToSubtract = (netMintUser[msg.sender] *
+        
+         if(userDebt != 0) {
+            uint256 amountToSubtract = (netMintUser[msg.sender] *
             amountToRepayinUSD) / userDebt;
 
-        netMintUser[msg.sender] -= amountToSubtract;
+            netMintUser[msg.sender] -= amountToSubtract;
 
-        netMintGlobal -= amountToSubtract;
+            netMintGlobal -= amountToSubtract;
+        }
 
         _burn(zUSD, msg.sender, amountToRepayinUSD);
 
