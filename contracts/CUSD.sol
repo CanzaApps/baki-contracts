@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "./interfaces/ZTokenInterface.sol";
 
-contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
+contract CUSD is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     // address private vault;
 
     mapping(address => uint256) private _balances;
@@ -33,7 +33,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     constructor(string memory name_, string memory symbol_) {
         _name = name_;
         _symbol = symbol_;
-        //_mint(msg.sender, 1000 * 10**18 );
+        _mint(msg.sender, 1000 * 10**18 );
     }
 
     /**

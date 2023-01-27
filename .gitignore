@@ -1,9 +1,6 @@
-./node_modules
-.env
+.history/
+node_modules/
 package-lock.json
-.history
-
-./oracleServer/node_modules
-./oracleServer/.env
-node_modules
-build
+artifacts/
+cache/
+.openzeppelin/

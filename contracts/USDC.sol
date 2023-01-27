@@ -1,13 +1,29 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
-import "./interfaces/ZTokenInterface.sol";
 
-contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
+/**
+ * @dev Interface of the zTokens to be used by Baki
+ */
+interface USDCInterface {
+    /**
+     * @dev Amount of zTokens to be minted for a user
+     * requires onlyVault modifier
+     */
+    function mint(address _address, uint256 _amount) external returns (bool);
+
+    /**
+     * @dev Amount of zTokens to be burned after swap/repay functions
+     * requires onlyVault modifier
+     */
+    function burn(address _address, uint256 _amount) external returns (bool);
+}
+
+contract USDC is Context, USDCInterface, IERC20, Ownable, IERC20Metadata {
     // address private vault;
 
     mapping(address => uint256) private _balances;
@@ -19,97 +35,56 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     string private _name;
     string private _symbol;
 
-     //Global mint
+    constructor() {
+        _name = "USDC";
+        _symbol = "USDC";
+        _mint(msg.sender, 1);
+    }
+
+    //Global mint
     mapping(address => uint256) private globalMint;
 
     //User mint
     mapping(address => mapping(address => uint256)) private userMint;
 
-    address vault;
-
-    /**
-    * Initializers
-     */
-    constructor(string memory name_, string memory symbol_) {
-        _name = name_;
-        _symbol = symbol_;
-        //_mint(msg.sender, 1000 * 10**18 );
-    }
-
-    /**
-     * Implement an onlyVault address
-     */
     //  OnlyVault modifier
     // modifier onlyVault {
     //   require(msg.sender == vault);
     //   _;
     // }
-    event Mint(
-        address indexed _userAddress, 
-        uint256 _amount
-    );
-
-    event Burn(
-        address indexed _userAddress,
-        uint256 _amount
-    );
-
-    event AddVaultAddress(address _address);
 
     /**
      * @dev these can only be called by the Vault contract
      */
     function mint(address _userAddress, uint256 _amount)
-        external
+        public
         override
         returns (bool)
     {
-        require(msg.sender == vault, "You do not have permission");
         _mint(_userAddress, _amount);
 
-        emit Mint(_userAddress, _amount);
+        //increment global mint value
+        globalMint[address(this)] += _amount;
+
+        //increment user mint value
+        userMint[_userAddress][address(this)] += _amount;
 
         return true;
     }
 
     function burn(address _userAddress, uint256 _amount)
-        external
+        public
         override
         returns (bool)
     {
-        require(msg.sender == vault, "You do not have permission");
         _burn(_userAddress, _amount);
-
-        emit Burn(_userAddress, _amount);
 
         return true;
     }
 
-    function addVaultAddress(address _address) external onlyOwner {
-        require(_address != address(0), "address cannot be a zero address");
-
-        vault = _address;
-
-        emit AddVaultAddress(_address);
-    }
-
-    function vaultAddress() public view returns (address) {
-        return vault;
-    }
-
-    /**
-     * @dev Returns the minted token value for a particular user
-     */
-    function getUserMintValue(address _address) public view returns (uint256) {
-        return userMint[_address][address(this)];
-    }
-
-    /**
-     * @dev Returns the total minted token value
-     */
-    function getGlobalMint() public view returns (uint256) {
-        return globalMint[address(this)];
-    }
+    // function vaultAddress() public view returns(address) {
+    //     return vault;
+    // }
 
     /**
      * @dev Returns the name of the token.
@@ -137,21 +112,21 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
      *
      * NOTE: This information is only used for _display_ purposes: it in
      * no way affects any of the arithmetic of the contract, including
-     * {IERC20Upgradeable-balanceOf} and {IERC20Upgradeable-transfer}.
+     * {IERC20-balanceOf} and {IERC20-transfer}.
      */
     function decimals() public view virtual override returns (uint8) {
         return 18;
     }
 
     /**
-     * @dev See {IERC20Upgradeable-totalSupply}.
+     * @dev See {IERC20-totalSupply}.
      */
     function totalSupply() public view virtual override returns (uint256) {
         return _totalSupply;
     }
 
     /**
-     * @dev See {IERC20Upgradeable-balanceOf}.
+     * @dev See {IERC20-balanceOf}.
      */
     function balanceOf(address account)
         public
@@ -164,7 +139,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     }
 
     /**
-     * @dev See {IERC20Upgradeable-transfer}.
+     * @dev See {IERC20-transfer}.
      *
      * Requirements:
      *
@@ -183,7 +158,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     }
 
     /**
-     * @dev See {IERC20Upgradeable-allowance}.
+     * @dev See {IERC20-allowance}.
      */
     function allowance(address owner, address spender)
         public
@@ -196,7 +171,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     }
 
     /**
-     * @dev See {IERC20Upgradeable-approve}.
+     * @dev See {IERC20-approve}.
      *
      * NOTE: If `amount` is the maximum `uint256`, the allowance is not updated on
      * `transferFrom`. This is semantically equivalent to an infinite approval.
@@ -217,7 +192,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     }
 
     /**
-     * @dev See {IERC20Upgradeable-transferFrom}.
+     * @dev See {IERC20-transferFrom}.
      *
      * Emits an {Approval} event indicating the updated allowance. This is not
      * required by the EIP. See the note at the beginning of {ERC20}.
@@ -247,7 +222,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
      * @dev Atomically increases the allowance granted to `spender` by the caller.
      *
      * This is an alternative to {approve} that can be used as a mitigation for
-     * problems described in {IERC20Upgradeable-approve}.
+     * problems described in {IERC20-approve}.
      *
      * Emits an {Approval} event indicating the updated allowance.
      *
@@ -269,7 +244,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
      * @dev Atomically decreases the allowance granted to `spender` by the caller.
      *
      * This is an alternative to {approve} that can be used as a mitigation for
-     * problems described in {IERC20Upgradeable-approve}.
+     * problems described in {IERC20-approve}.
      *
      * Emits an {Approval} event indicating the updated allowance.
      *
