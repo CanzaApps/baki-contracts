@@ -105,11 +105,11 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         address _zZAR,
         address _oracle,
         address _collateral
-        ) external initializer {
+        ) external onlyOwner initializer {
         COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
-        LIQUIDATION_REWARD = 10;
+        LIQUIDATION_REWARD = 15;
         treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
-        swapFee = WadRayMath.wadDiv(3, 1000);
+        swapFee = WadRayMath.wadDiv(12, 1000);
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(3, 4);
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 4);
         transactionsPaused = false;
@@ -251,27 +251,24 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         );
         uint256 _zTokenFromUSDRate = getZTokenUSDRate(_zTokenFrom);
         uint256 _zTokenToUSDRate = getZTokenUSDRate(_zTokenTo);
-
-        _zTokenFromUSDRate = _zTokenFromUSDRate * 1e3;
-        _zTokenToUSDRate = _zTokenToUSDRate * 1e3;
-
-        swapFeePerTransaction = swapFee * _amountWithDecimal;
-
-        swapFeePerTransaction = swapFeePerTransaction / MULTIPLIER;
-
-        swapFeePerTransactionInUsd = swapFeePerTransaction * MULTIPLIER;
-
-        swapFeePerTransactionInUsd = swapFeePerTransactionInUsd / _zTokenFromUSDRate;
        
         /**
          * Get the USD values of involved zTokens
          * Handle minting of new tokens and burning of user tokens
          */
-        swapAmount = _amountWithDecimal - swapFeePerTransaction;
-        mintAmount =
-            swapAmount *
-            WadRayMath.wadDiv(_zTokenToUSDRate, _zTokenFromUSDRate);
-        mintAmount = mintAmount / MULTIPLIER;
+        swapAmount = (_amountWithDecimal * _zTokenToUSDRate);
+
+        swapAmount = swapAmount / _zTokenFromUSDRate;
+
+        swapFeePerTransaction = swapFee * swapAmount;
+
+        swapFeePerTransaction = swapFeePerTransaction / MULTIPLIER;
+
+        swapFeePerTransactionInUsd = swapFeePerTransaction * HALF_MULTIPLIER;
+
+        swapFeePerTransactionInUsd = swapFeePerTransactionInUsd / _zTokenToUSDRate;
+
+        mintAmount = swapAmount - swapFeePerTransaction;
 
         /**
          * Track the USD value of the swap amount
@@ -602,19 +599,20 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
          * Ensure user has debt before progressing
          * Update user's collateral ratio
          */
-        require(userDebt > 0, "User has no debt");
+        
+        if (userDebt != 0) {
+            userCollateralRatio =
+                1e3 *
+                WadRayMath.wadDiv(USDValueOfCollateral, userDebt);
 
-        userCollateralRatio =
-            1e3 *
-            WadRayMath.wadDiv(USDValueOfCollateral, userDebt);
+            userCollateralRatio = userCollateralRatio / MULTIPLIER;
 
-        userCollateralRatio = userCollateralRatio / MULTIPLIER;
-
-        if (userCollateralRatio > COLLATERIZATION_RATIO_THRESHOLD){
-            return false;
+            if (userCollateralRatio < COLLATERIZATION_RATIO_THRESHOLD){
+                return true;
+            }
         }
 
-        return true;
+        return false;
     }
 
     /**
@@ -961,7 +959,7 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         } else if (_address == zUSD) {
             zTokenUSDRate = USD;
         } else {
-            revert();
+            revert("Invalid");
         }
 
         return zTokenUSDRate;
@@ -988,26 +986,26 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
         uint256 _netMintUserzUSDValue,
         uint256 _netMintGlobalzUSDValue
     ) public view returns (uint256) {
-        require(
-            _netMintGlobalzUSDValue > 0,
-            "Global zUSD mint too low, underflow may occur"
-        );
-        uint256 globalDebt = getGlobalDebt();
-        uint256 userDebtOutstanding;
-        uint256 mintRatio;
+       
+        if(_netMintGlobalzUSDValue != 0 ) {
+            uint256 globalDebt = getGlobalDebt();
+            uint256 userDebtOutstanding;
+            uint256 mintRatio;
 
-        mintRatio = WadRayMath.wadDiv(
-            _netMintUserzUSDValue,
-            _netMintGlobalzUSDValue
-        );
+            mintRatio = WadRayMath.wadDiv(
+                _netMintUserzUSDValue,
+                _netMintGlobalzUSDValue
+            );
 
-        userDebtOutstanding = mintRatio * globalDebt;
+            userDebtOutstanding = mintRatio * globalDebt;
 
-        uint256 tempMultiplier = MULTIPLIER * HALF_MULTIPLIER;
+            uint256 tempMultiplier = MULTIPLIER * HALF_MULTIPLIER;
 
-        userDebtOutstanding = userDebtOutstanding / tempMultiplier;
+            userDebtOutstanding = userDebtOutstanding / tempMultiplier;
 
-        return userDebtOutstanding;
+            return userDebtOutstanding;
+        }
+     return 0;
     }
 
        /**
@@ -1038,11 +1036,6 @@ contract Vault is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable 
          * If the netMintGlobal is 0, then debt doesn't exist
          */
         if (netMintGlobal != 0) {
-            require(
-                netMintGlobal > 0,
-                "Global zUSD mint too low, underflow may occur"
-            );
-
             userDebt = _updateUserDebtOutstanding(
                 netMintUser[msg.sender],
                 netMintGlobal
