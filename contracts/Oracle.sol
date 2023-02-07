@@ -23,7 +23,12 @@ contract BakiOracle is Ownable, BakiOracleInterface {
     }
 
     function setZCollateralUSD(uint256 _value) external onlyOwner {
-        collateralUSD = _value;
+
+        if(_value > 1000) {
+            collateralUSD = 1000;
+        } else {
+            collateralUSD = _value;
+        }
     } 
 
 }
