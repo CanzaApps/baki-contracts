@@ -1023,6 +1023,10 @@ contract Vault is
         return globalDebt;
     }
 
+    function getUserDebt(address user) public view returns (uint256) {
+        return _updateUserDebtOutstanding(netMintUser[user], netMintGlobal);
+    }
+
     /**
      * Get User Outstanding Debt
      */

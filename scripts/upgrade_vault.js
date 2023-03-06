@@ -1,7 +1,7 @@
 const { ethers, upgrades } = require("hardhat");
 
 // Current Address of the Vault 
-const currentVaultAddress = "0xB5df3C05f46c0D15849B9129121063A47591a88C";
+const currentVaultAddress = "0x3ab5E7a3466d0e5B556e0005D705cbC3ADc34767";
 
 async function main() {
   const upgradedVault = await ethers.getContractFactory("Vault");
