@@ -114,9 +114,9 @@ contract Vault is
         COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
         LIQUIDATION_REWARD = 15;
         treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
-        swapFee = WadRayMath.wadDiv(12, 1000);
-        globalMintersPercentOfSwapFee = WadRayMath.wadDiv(3, 4);
-        treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 4);
+        swapFee = WadRayMath.wadDiv(8, 1000);
+        globalMintersPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
+        treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
         transactionsPaused = false;
         zUSD = _zUSD;
         zNGN = _zNGN;
@@ -1021,6 +1021,10 @@ contract Vault is
             );
 
         return globalDebt;
+    }
+
+    function getUserDebt(address user) public view returns (uint256) {
+        return _updateUserDebtOutstanding(netMintUser[user], netMintGlobal);
     }
 
     /**
