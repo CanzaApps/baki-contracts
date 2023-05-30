@@ -21,13 +21,13 @@ async function deployToken(_name, _symbol) {
 
 async function deployOracle() {
   const Oracle = await ethers.getContractFactory("BakiOracle");
-  console.log("deploying oracle");
 
-  const oracle = await Oracle.deploy();
+  const oracle = await upgrades.deployProxy(Oracle, [], {
+    initializer: "oracle_init",
+  });
 
   await oracle.deployed();
-
-  console.log(`oracle is deployed is ${oracle.address}`);
+  console.log("Oracle deployed to:", oracle.address);
   return oracle.address;
 }
 
