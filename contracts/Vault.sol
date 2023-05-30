@@ -110,7 +110,7 @@ contract Vault is
         address _zZAR,
         address _oracle,
         address _collateral
-    ) external reinitializer(1) {
+    ) external reinitializer(2) {
         COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
         LIQUIDATION_REWARD = 15;
         treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
@@ -184,15 +184,13 @@ contract Vault is
     function depositAndMint(
         uint256 _depositAmount,
         uint256 _mintAmount
-    ) external nonReentrant {
+    ) external payable nonReentrant {
         blockBlacklistedAddresses();
         isTransactionsPaused();
-        uint256 _depositAmountWithDecimal = _getDecimal(_depositAmount);
-        uint256 _mintAmountWithDecimal = _getDecimal(_mintAmount);
-
+        
         require(
             IERC20(collateral).balanceOf(msg.sender) >=
-                _depositAmountWithDecimal,
+                _depositAmount,
             "Insufficient balance"
         );
 
@@ -200,14 +198,14 @@ contract Vault is
         bool transferSuccess = IERC20(collateral).transferFrom(
             msg.sender,
             address(this),
-            _depositAmountWithDecimal
+            _depositAmount
         );
 
         if (!transferSuccess) revert();
 
-        userCollateralBalance[msg.sender] += _depositAmountWithDecimal;
+        userCollateralBalance[msg.sender] += _depositAmount;
 
-        totalCollateral += _depositAmountWithDecimal;
+        totalCollateral += _depositAmount;
         /**
          * if this is user's first mint, add to minters list
          */
@@ -215,12 +213,12 @@ contract Vault is
             mintersAddresses.push(msg.sender);
         }
 
-        _mint(zUSD, msg.sender, _mintAmountWithDecimal);
+        _mint(zUSD, msg.sender, _mintAmount);
 
-        netMintUser[msg.sender] += _mintAmountWithDecimal;
-        grossMintUser[msg.sender] += _mintAmountWithDecimal;
+        netMintUser[msg.sender] += _mintAmount;
+        grossMintUser[msg.sender] += _mintAmount;
 
-        netMintGlobal += _mintAmountWithDecimal;
+        netMintGlobal += _mintAmount;
 
         /**
          * Update user outstanding debt after successful mint
@@ -242,7 +240,6 @@ contract Vault is
         blockBlacklistedAddresses();
         isTransactionsPaused();
 
-        uint256 _amountWithDecimal = _getDecimal(_amount);
         uint256 swapFeePerTransactionInUsd;
         uint256 swapAmount;
         uint256 mintAmount;
@@ -251,7 +248,7 @@ contract Vault is
         uint256 treasuryFeePerTransaction;
 
         require(
-            IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amountWithDecimal,
+            IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amount,
             "Insufficient balance"
         );
         uint256 _zTokenFromUSDRate = getZTokenUSDRate(_zTokenFrom);
@@ -261,7 +258,7 @@ contract Vault is
          * Get the USD values of involved zTokens
          * Handle minting of new tokens and burning of user tokens
          */
-        swapAmount = (_amountWithDecimal * _zTokenToUSDRate);
+        swapAmount = (_amount * _zTokenToUSDRate);
 
         swapAmount = swapAmount / _zTokenFromUSDRate;
 
@@ -280,12 +277,12 @@ contract Vault is
         /**
          * Track the USD value of the swap amount
          */
-        swapAmountInUSD = _amountWithDecimal * MULTIPLIER;
-        swapAmountInUSD = _amountWithDecimal / _zTokenFromUSDRate;
+        swapAmountInUSD = _amount * MULTIPLIER;
+        swapAmountInUSD = _amount / _zTokenFromUSDRate;
 
         totalSwapVolume += swapAmountInUSD;
 
-        _burn(_zTokenFrom, msg.sender, _amountWithDecimal);
+        _burn(_zTokenFrom, msg.sender, _amount);
 
         _mint(_zTokenTo, msg.sender, mintAmount);
 
@@ -342,10 +339,7 @@ contract Vault is
         blockBlacklistedAddresses();
         isTransactionsPaused();
 
-        uint256 _amountToRepayWithDecimal = _getDecimal(_amountToRepay);
-        uint256 _amountToWithdrawWithDecimal = _getDecimal(_amountToWithdraw);
-
-        uint256 amountToRepayinUSD = _repay(_amountToRepayWithDecimal, _zToken);
+        uint256 amountToRepayinUSD = _repay(_amountToRepay, _zToken);
 
         uint256 userDebt;
 
@@ -355,7 +349,7 @@ contract Vault is
         );
 
         require(
-            userCollateralBalance[msg.sender] >= _amountToWithdrawWithDecimal,
+            userCollateralBalance[msg.sender] >= _amountToWithdraw,
             "Insufficient Collateral"
         );
 
@@ -385,11 +379,11 @@ contract Vault is
         /**
          * @TODO - Implement actual transfer of cUSD _amountToWithdrawWithDecimal value
          */
-        userCollateralBalance[msg.sender] -= _amountToWithdrawWithDecimal;
+        userCollateralBalance[msg.sender] -= _amountToWithdraw;
 
         bool transferSuccess = IERC20(collateral).transfer(
             msg.sender,
-            _amountToWithdrawWithDecimal
+            _amountToWithdraw
         );
 
         if (!transferSuccess) revert();
@@ -939,17 +933,6 @@ contract Vault is
         }
 
         return zUSDMintAmount;
-    }
-
-    /**
-     * Multiply values by 10^18
-     */
-    function _getDecimal(uint256 amount) internal virtual returns (uint256) {
-        uint256 decimalAmount;
-
-        decimalAmount = amount * 1e16;
-
-        return decimalAmount;
     }
 
     /**
