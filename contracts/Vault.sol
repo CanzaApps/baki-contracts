@@ -251,8 +251,8 @@ contract Vault is
             IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amount,
             "Insufficient balance"
         );
-        uint256 _zTokenFromUSDRate = getZTokenUSDRate(_zTokenFrom);
-        uint256 _zTokenToUSDRate = getZTokenUSDRate(_zTokenTo);
+        uint256 _zTokenFromUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenFrom);
+        uint256 _zTokenToUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenTo);
 
         /**
          * Get the USD values of involved zTokens
@@ -862,7 +862,7 @@ contract Vault is
          * If the token to be repayed is zUSD, skip the fees, mint, burn process and return the _amount directly
          */
         if (_zToken != zUSD) {
-            uint256 zTokenUSDRate = getZTokenUSDRate(_zToken);
+            uint256 zTokenUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zToken);
 
             /**
              * Get the swap fee per transaction in USD
@@ -963,45 +963,28 @@ contract Vault is
     }
 
     /**
-     * Returns the appropriate USD exchange rate during a swap/repay
+     * Helper function for global debt 
      */
-    function getZTokenUSDRate(
-        address _address
-    ) internal virtual returns (uint256) {
-        uint256 zTokenUSDRate;
+    function computeValueOfSingleZToken(address _address) internal view returns(uint256) {
+        uint256 singleZToken = WadRayMath.wadDiv(IERC20(_address).totalSupply(), 
+        BakiOracleInterface(Oracle).getZTokenUSDValue(_address)
+        );
 
-        if (_address == zNGN) {
-            zTokenUSDRate = BakiOracleInterface(Oracle).NGNUSD();
-        } else if (_address == zXAF) {
-            zTokenUSDRate = BakiOracleInterface(Oracle).XAFUSD();
-        } else if (_address == zZAR) {
-            zTokenUSDRate = BakiOracleInterface(Oracle).ZARUSD();
-        } else if (_address == zUSD) {
-            zTokenUSDRate = USD;
-        } else {
-            revert("Invalid");
-        }
-
-        return zTokenUSDRate;
+        return singleZToken;
     }
 
     /**
      * Get Global Debt
      */
     function getGlobalDebt() public view returns (uint256) {
-        uint256 globalDebt = (IERC20(zUSD).totalSupply() * HALF_MULTIPLIER) +
-            WadRayMath.wadDiv(
-                IERC20(zNGN).totalSupply(),
-                BakiOracleInterface(Oracle).NGNUSD()
-            ) +
-            WadRayMath.wadDiv(
-                IERC20(zXAF).totalSupply(),
-                BakiOracleInterface(Oracle).XAFUSD()
-            ) +
-            WadRayMath.wadDiv(
-                IERC20(zZAR).totalSupply(),
-                BakiOracleInterface(Oracle).ZARUSD()
-            );
+        uint256 globalDebt;
+        address[] memory zTokenList = BakiOracleInterface(Oracle).getZTokenList();
+        
+        for(uint256 i = 0; i < zTokenList.length; i++) {
+            address zToken = zTokenList[i];
+
+            globalDebt += computeValueOfSingleZToken(zToken);
+        }
 
         return globalDebt;
     }

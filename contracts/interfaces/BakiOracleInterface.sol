@@ -8,11 +8,9 @@ interface BakiOracleInterface {
     /**
     * @dev get each exRates 
      */
-    function NGNUSD() external view returns (uint256);
+    function getZTokenUSDValue(address _address) external view returns(uint256);
 
-    function XAFUSD() external view returns (uint256);
-
-    function ZARUSD() external view returns (uint256);
+    function getZTokenList() external view returns(address[] memory);
 
     function collateralUSD() external view returns (uint256);
 }
