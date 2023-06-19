@@ -30,11 +30,7 @@ contract Vault is
      * addresses of both the collateral and ztokens
      */
     address private collateral;
-    address private zUSD;
-    address private zXAF;
-    address private zNGN;
-    address private zZAR;
-
+    
     address private Oracle;
 
     uint256 private constant USD = 1e3;
@@ -104,10 +100,6 @@ contract Vault is
      */
 
     function vault_init(
-        address _zUSD,
-        address _zNGN,
-        address _zXAF,
-        address _zZAR,
         address _oracle,
         address _collateral
     ) external reinitializer(2) {
@@ -118,10 +110,6 @@ contract Vault is
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
         transactionsPaused = false;
-        zUSD = _zUSD;
-        zNGN = _zNGN;
-        zXAF = _zXAF;
-        zZAR = _zZAR;
         Oracle = _oracle;
         collateral = _collateral;
 
