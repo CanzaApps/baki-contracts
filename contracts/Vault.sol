@@ -1118,7 +1118,7 @@ contract Vault is
             userCollateralBalance[msg.sender]
         );
 
-        if (USDValueOfCollateral < (userDebt * basisPointsRatio) / 10000) {
+        if (USDValueOfCollateral < (userDebt * basisPointsRation) / 10000) {
 
             totalDebt += userDebt;
             belowRatioUsers[userCount++] = mintersAddresses[i];
