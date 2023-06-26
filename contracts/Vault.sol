@@ -1102,5 +1102,39 @@ contract Vault is
 
         return true;
     }
+
+    function getUserBelowCollateraRation(uint256 basisPointsRation) external view returns (address[] memory, uint256) {
+        uint256 userCount = 0;
+        uint256 totalDebt = 0;
+         address[] memory belowRatioUsers = new address[](mintersAddresses.length);
+
+        for (uint256 i = 0; i < mintersAddresses.length; i++) {
+      
+        uint256 userDebt = _updateUserDebtOutstanding(
+                netMintUser[mintersAddresses[i]],
+                netMintGlobal
+            );
+        uint256 USDValueOfCollateral = getUSDValueOfCollateral(
+            userCollateralBalance[msg.sender]
+        );
+
+        if (USDValueOfCollateral < (userDebt * basisPointsRatio) / 10000) {
+
+            totalDebt += userDebt;
+            belowRatioUsers[userCount++] = mintersAddresses[i];
+        }
+
+        }
+
+        // Resize the belowRatioUsers array to the correct size
+        address[] memory resizedBelowRatioUsers = new address[](userCount);
+        for (uint256 i = 0; i < userCount; i++) {
+            resizedBelowRatioUsers[i] = belowRatioUsers[i];
+        }
+
+        return (resizedBelowRatioUsers, totalDebt);
+    }
+        
+    
 }
 
