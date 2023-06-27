@@ -2,71 +2,69 @@
 pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-
-/**
-* @dev Oracle interface
- */
-interface BakiOracleInterface {
-    /**
-    * @dev get each exRates 
-     */
-    function getZTokenUSDValue(address _address) external view returns(uint256);
-
-    function getZTokenList() external view returns(address[] memory);
-
-    function collateralUSD() external view returns (uint256);
-}
+import "./interfaces/BakiOracleInterface.sol";
 
 contract BakiOracle is Ownable, BakiOracleInterface {
 
-    mapping(address => uint256) public zTokenUSDValue;
-    address[] public zTokenList;
+    mapping(string => address) private zTokenAddress;
+    mapping(address => uint256) private zTokenUSDValue;
+    string[] public zTokenList;
     uint256 public collateralUSD;
 
-    event AddZToken(address indexed _address);
-    event RemoveZToken(address indexed _address);
-    event SetZTokenUSDValue(address indexed _address, uint256 _value);
+    event AddZToken(string indexed _name, address _address);
+    event RemoveZToken(string indexed _name);
+    event SetZTokenUSDValue(string indexed _name, uint256 _value);
     event SetZCollateralUSD(uint256 _value);
 
-    function addZToken(address _address) external onlyOwner {
+    function addZToken(string calldata _name, address _address) external onlyOwner {
         require(_address != address(0), "Address is invalid");
 
-        zTokenList.push(_address);
+        zTokenAddress[_name] = _address;
 
-        emit AddZToken(_address);
+        zTokenList.push(_name);
+
+        emit AddZToken(_name, _address);
     }
 
-    function removeZToken(address _address) external onlyOwner {
-        require(_address != address(0), "Address is invalid");
+    function getZToken(string calldata _name) public view returns(address){
+        require(zTokenAddress[_name] != address(0), "zToken does not exist");
 
-        uint256 index;
+        return zTokenAddress[_name];
+    }
 
-        for(uint256 i = 0; i < zTokenList.length; i++) {
-            if(zTokenList[i] == _address) {
-                index = i;
-            }
-        }
+    function getZTokenList() external view returns(string[] memory){
+        return zTokenList;
+    }
 
-        zTokenList[index] = zTokenList[zTokenList.length-1];
+    function removeZToken(string calldata _name) external onlyOwner {
+        require(zTokenAddress[_name] != address(0), "zToken does not exist");
 
-        zTokenList.pop();
+        delete zTokenAddress[_name];
 
-        emit RemoveZToken(_address);
+        emit RemoveZToken(_name);
     }
 
     function setZTokenUSDValue(
-        address _address,
+        string calldata _name,
         uint256 _value
     ) external onlyOwner {
-        zTokenUSDValue[_address] = _value;
+        address zToken = getZToken(_name);
 
-        emit SetZTokenUSDValue(_address, _value);
+        require(zToken != address(0), "zToken does not exist");
+
+        zTokenUSDValue[zToken] = _value;
+
+        emit SetZTokenUSDValue(_name, _value);
     }
 
     function getZTokenUSDValue(
-        address _address
+        string calldata _name
     ) external view returns (uint256) {
-        return zTokenUSDValue[_address];
+        address zToken = getZToken(_name);
+
+        require(zToken != address(0), "zToken does not exist");
+
+        return zTokenUSDValue[zToken];
     }
 
     function setZCollateralUSD(uint256 _value) external onlyOwner {
@@ -77,9 +75,5 @@ contract BakiOracle is Ownable, BakiOracleInterface {
         }
 
         emit SetZCollateralUSD(_value);
-    }
-
-    function getZTokenList() external view returns (address[] memory) {
-        return zTokenList;
     }
 }
