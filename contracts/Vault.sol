@@ -187,12 +187,6 @@ contract Vault is
         userCollateralBalance[msg.sender] += _depositAmount;
 
         totalCollateral += _depositAmount;
-        /**
-         * if this is user's first mint, add to minters list
-         */
-        if (grossMintUser[msg.sender] == 0) {
-            mintersAddresses.push(msg.sender);
-        }
 
         _mint(zUSD, msg.sender, _mintAmount);
 
@@ -200,6 +194,22 @@ contract Vault is
         grossMintUser[msg.sender] += _mintAmount;
 
         netMintGlobal += _mintAmount;
+
+          /**
+         * if this is user's first mint, add to minters list
+         */
+        bool addressExists = false;
+
+        for (uint i = 0; i < mintersAddresses.length; i++) {
+        if (mintersAddresses[i] == msg.sender) {
+            addressExists = true;
+            break;
+        }
+        }
+
+        if (!addressExists && grossMintUser[msg.sender] > 0) {
+            mintersAddresses.push(msg.sender);
+        }
 
         _testImpact();
 
