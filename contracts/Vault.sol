@@ -166,7 +166,7 @@ contract Vault is
         uint256 _depositAmount,
         uint256 _mintAmount
     ) external payable nonReentrant {
-        blockBlacklistedAddresses();
+        // blockBlacklistedAddresses();
         isTransactionsPaused();
         
         require(
@@ -188,13 +188,24 @@ contract Vault is
 
         totalCollateral += _depositAmount;
 
+        uint256 globalDebt = getGlobalDebt();
+
+        uint256 netMintChange;
+
         _mint(zUSD, msg.sender, _mintAmount);
 
-        netMintUser[msg.sender] += _mintAmount;
+        if(globalDebt == 0 || netMintGlobal == 0) {
+            netMintChange += _mintAmount;
+        } else {
+            netMintChange += netMintGlobal * _mintAmount * MULTIPLIER / globalDebt;
+
+            netMintChange = netMintChange / MULTIPLIER ;
+        }
+
         grossMintUser[msg.sender] += _mintAmount;
 
-        netMintGlobal += _mintAmount;
-
+        netMintUser[msg.sender] += netMintChange;
+        netMintGlobal += netMintChange;
           /**
          * if this is user's first mint, add to minters list
          */
@@ -224,7 +235,7 @@ contract Vault is
         string calldata _zTokenFrom,
         string calldata _zTokenTo
     ) external nonReentrant {
-        blockBlacklistedAddresses();
+        // blockBlacklistedAddresses();
         isTransactionsPaused();
 
         uint256 swapAmount;
@@ -321,7 +332,7 @@ contract Vault is
         uint256 _amountToWithdraw,
         string calldata _zToken
     ) external nonReentrant {
-        blockBlacklistedAddresses();
+        // blockBlacklistedAddresses();
         isTransactionsPaused();
 
         uint256 amountToRepayinUSD = _repay(_amountToRepay, _zToken);
@@ -379,7 +390,7 @@ contract Vault is
     }
 
     function liquidate(address _user) external nonReentrant {
-        blockBlacklistedAddresses();
+        // blockBlacklistedAddresses();
         isTransactionsPaused();
 
         uint256 userDebt;
