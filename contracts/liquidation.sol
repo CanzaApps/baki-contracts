@@ -14,7 +14,7 @@ import "./libraries/WadRayMath.sol";
 
 import "./interfaces/IVault.sol";
 import "./interfaces/IALALiquidation.sol";
-import "./vault.sol";
+import "./Vault.sol";
 
 
 contract Liquidation is
