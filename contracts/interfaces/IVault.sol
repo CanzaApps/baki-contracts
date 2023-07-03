@@ -14,31 +14,25 @@ interface IVault {
     event Deposit(uint256 amountDeposited, uint256 amountMinted);
 
     // #### Function definitions
-    function mint(
-        uint256 amountToMint,
-        uint256 amountToDeposited
-    ) external payable;
+    function mint(uint256 amountToMint, uint256 amountToDeposited)
+        external
+        payable;
 
-    function deposit(
-        uint256 amountToDeposit,
-        uint256 _mintAmount
-    ) external payable;
+    function deposit(uint256 amountToDeposit, uint256 _mintAmount)
+        external
+        payable;
 
-    function controller(
-        uint256 amountToDeposit,
-        uint256 _mintAmount
-    ) external payable;
+    function controller(uint256 amountToDeposit, uint256 _mintAmount)
+        external
+        payable;
 
-    function getVault(
-        address userAddress
-    ) external view returns (Vault memory vault);
+    function getVault(address userAddress)
+        external
+        view
+        returns (Vault memory vault);
 
-    function estimateCollateralAmount(
-        uint256 repaymentAmount
-    ) external view returns (uint256 collateralAmount);
-
-    function viewMintersAddress() external view returns (address[] memory);
-    function getUserDebt(address user) external view returns (uint256);
-    function getUserCollateralBalanceByUser(address user) external view returns (uint256);
-    function checkUserForLiquidation(address _user) external  view returns (bool);
+    function estimateCollateralAmount(uint256 repaymentAmount)
+        external
+        view
+        returns (uint256 collateralAmount);
 }
