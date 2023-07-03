@@ -99,6 +99,8 @@ contract Vault is
 
     uint256 public totalSwapVolume;
 
+    address[] private whitelist;
+
     /**
      * Initializers
      */
@@ -176,6 +178,51 @@ contract Vault is
     event ChangeTreasuryFee(uint256 a, uint256 b);
 
     event SetOracleAddress(address _address);
+
+
+    // Modifier to check if the caller is whitelisted
+    modifier onlyWhitelisted() {
+        require(isWhitelisted(msg.sender), "Caller is not whitelisted");
+        _;
+    }
+
+    // Function to add an address to the whitelist
+    function addToWhitelist(address _address) external onlyWhitelisted {
+        whitelist.push(_address);
+    }
+
+    // Internal function to check if an address is whitelisted
+    function isWhitelisted(address _address) internal view returns (bool) {
+        for (uint256 i = 0; i < whitelist.length; i++) {
+            if (whitelist[i] == _address) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Function to remove an address from the whitelist
+    function removeFromWhitelist(address _address) external onlyWhitelisted {
+        // Find the index of the address in the whitelist
+        uint256 indexToRemove = findWhitelistIndex(_address);
+
+        // If the address is found in the whitelist, remove it
+        require(indexToRemove < whitelist.length, "Address not found in whitelist");
+        if (indexToRemove < whitelist.length - 1) {
+            whitelist[indexToRemove] = whitelist[whitelist.length - 1];
+        }
+        whitelist.pop();
+    }
+
+    // Internal function to find the index of an address in the whitelist
+    function findWhitelistIndex(address _address) internal view returns (uint256) {
+        for (uint256 i = 0; i < whitelist.length; i++) {
+            if (whitelist[i] == _address) {
+                return i;
+            }
+        }
+        return whitelist.length;
+    }
 
     /** 
     @notice Allows a user to deposit cUSD collateral in exchange for some amount of zUSD.
@@ -399,71 +446,6 @@ contract Vault is
         emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
     }
 
-    function liquidate(address _user) external nonReentrant {
-        blockBlacklistedAddresses();
-        isTransactionsPaused();
-
-        uint256 userDebt;
-
-        bool isUserInLiquidationZone = checkUserForLiquidation(_user);
-        require(
-            isUserInLiquidationZone == true,
-            "User is not in the liquidation zone"
-        );
-
-        uint totalRewards = getPotentialTotalReward(_user);
-
-        /**
-         * Update the user's debt balance with latest price feeds
-         */
-        userDebt = _updateUserDebtOutstanding(
-            netMintUser[_user],
-            netMintGlobal
-        );
-
-        /**
-         * check if the liquidator has sufficient zUSD to repay the debt
-         * burn the zUSD
-         */
-        require(
-            IERC20(zUSD).balanceOf(msg.sender) >= userDebt,
-            "Liquidator does not have sufficient zUSD to repay debt"
-        );
-
-        /**
-         * Get reward fee
-         * Send the equivalent of debt as collateral and also a 10% fee to the liquidator
-         */
-        netMintGlobal = netMintGlobal - netMintUser[_user];
-        netMintUser[_user] = 0;
-
-        _burn(zUSD, msg.sender, userDebt);
-
-        /**
-         * Send total rewards to Liquidator
-         */
-        if (userCollateralBalance[_user] <= totalRewards) {
-            userCollateralBalance[_user] = 0;
-
-            bool transferSuccess = IERC20(collateral).transfer(
-                msg.sender,
-                totalRewards
-            );
-
-            if (!transferSuccess) revert();
-        } else {
-            userCollateralBalance[_user] -= totalRewards;
-
-            bool transferSuccess = IERC20(collateral).transfer(
-                msg.sender,
-                totalRewards
-            );
-
-            if (!transferSuccess) revert();
-        }
-
-        emit Liquidate(_user, userDebt, totalRewards, msg.sender);
-    }
 
     /**
      * Allow minters to claim rewards/fees on swap
@@ -482,170 +464,6 @@ contract Vault is
         if (!transferSuccess) revert();
     }
 
-    /**
-     * Get potential total rewards from user in liquidation zone
-     */
-    function getPotentialTotalReward(
-        address _user
-    ) public view returns (uint256) {
-        bool isUserInLiquidationZone = checkUserForLiquidation(_user);
-
-        uint256 rate = BakiOracleInterface(Oracle).collateralUSD();
-
-        uint256 _userDebt = _updateUserDebtOutstanding(
-            netMintUser[_user],
-            netMintGlobal
-        );
-
-        require(
-            isUserInLiquidationZone == true,
-            "User is not in the liquidation zone"
-        );
-        require(_userDebt > 0, "User has no debt");
-
-        uint256 rewardFee = (_userDebt * LIQUIDATION_REWARD) / 100;
-
-        uint256 rewards = _userDebt + rewardFee;
-
-        rewards = rewards * HALF_MULTIPLIER;
-
-        rewards = rewards / rate;
-
-        if (userCollateralBalance[_user] <= rewards) {
-            return userCollateralBalance[_user];
-        } else {
-            return rewards;
-        }
-    }
-
-    /**
-     * Adds and removes users in Liquidation zone
-     */
-    function manageUsersInLiquidationZone()
-        external
-        onlyOwner
-        returns (address[] memory)
-    {
-        for (uint256 i = 0; i < mintersAddresses.length; i++) {
-            bool isUserInLiquidationZone = checkUserForLiquidation(
-                mintersAddresses[i]
-            );
-            bool isUserAlreadyInLiquidationArray = _checkIfUserAlreadyExistsInLiquidationList(
-                    mintersAddresses[i]
-                );
-
-            // If a user is in liquidation zone and not in the liquidation list, add user to the list
-            if (
-                isUserInLiquidationZone == true &&
-                isUserAlreadyInLiquidationArray == false
-            ) {
-                usersInLiquidationZone.push(mintersAddresses[i]);
-            }
-
-            // If the user is not/ no longer in the liquidation zone but still in the list, remove from the list
-            if (
-                isUserInLiquidationZone == false &&
-                isUserAlreadyInLiquidationArray == true
-            ) {
-                _removeUserFromLiquidationList(mintersAddresses[i]);
-            }
-        }
-        return usersInLiquidationZone;
-    }
-
-    function getUserFromLiquidationZone()
-        external
-        view
-        returns (address[] memory)
-    {
-        return usersInLiquidationZone;
-    }
-
-    /**
-     * Helper function to check that a user is already present in liquidation list
-     */
-    function _checkIfUserAlreadyExistsInLiquidationList(
-        address _user
-    ) internal view returns (bool) {
-        for (uint256 i = 0; i < usersInLiquidationZone.length; i++) {
-            if (usersInLiquidationZone[i] == _user) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Helper function to remove a user from the liquidation list
-     */
-    function _removeUserFromLiquidationList(address _user) internal onlyOwner {
-        bool isUserAlreadyInLiquidationArray = _checkIfUserAlreadyExistsInLiquidationList(
-                _user
-            );
-
-        require(
-            isUserAlreadyInLiquidationArray == true,
-            "user is not in the liquidation zone"
-        );
-
-        uint256 index;
-
-        for (uint256 i = 0; i < usersInLiquidationZone.length; i++) {
-            if (usersInLiquidationZone[i] == _user) {
-                index = i;
-            }
-        }
-
-        usersInLiquidationZone[index] = usersInLiquidationZone[
-            usersInLiquidationZone.length - 1
-        ];
-
-        usersInLiquidationZone.pop();
-    }
-
-    /**
-     * Check User for liquidation
-     */
-    function checkUserForLiquidation(address _user) public view returns (bool) {
-        require(_user != address(0), "address cannot be a zero address");
-
-        uint256 userDebt;
-        uint256 userCollateralRatio;
-
-        /**
-         * Get the USD value of the user's collateral
-         */
-        uint256 USDValueOfCollateral = getUSDValueOfCollateral(
-            userCollateralBalance[_user]
-        );
-
-        /**
-         * Update the user's debt balance with latest price feeds
-         */
-        userDebt = _updateUserDebtOutstanding(
-            netMintUser[_user],
-            netMintGlobal
-        );
-
-        /**
-         * Ensure user has debt before progressing
-         * Update user's collateral ratio
-         */
-
-        if (userDebt != 0) {
-            userCollateralRatio =
-                1e3 *
-                WadRayMath.wadDiv(USDValueOfCollateral, userDebt);
-
-            userCollateralRatio = userCollateralRatio / MULTIPLIER;
-
-            if (userCollateralRatio < COLLATERIZATION_RATIO_THRESHOLD) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     /**
      * Get user balance
@@ -674,6 +492,20 @@ contract Vault is
      * Get Collateral value in USD
      */
     function getUserCollateralBalance() external view returns (uint256) {
+        return userCollateralBalance[msg.sender];
+    }
+
+    /**
+     * Get Collateral value in USD by user address
+     */
+    function getCollateralBalanceByUserInUSD(address _user) external view returns (uint256) {
+        return getUSDValueOfCollateral(userCollateralBalance[msg.sender]);
+    }
+
+    /**
+     * Get Collateral value  by user address
+     */
+    function getCollateralBalanceByUser(address _user) external view returns (uint256) {
         return userCollateralBalance[msg.sender];
     }
 
@@ -1023,7 +855,7 @@ contract Vault is
         return globalDebt;
     }
 
-    function getUserDebt(address user) public view returns (uint256) {
+    function getUserDebt(address user) external view returns (uint256) {
         return _updateUserDebtOutstanding(netMintUser[user], netMintGlobal);
     }
 
@@ -1101,40 +933,36 @@ contract Vault is
         }
 
         return true;
+    } 
+
+    function updateUserCollateralBalance(address _user, uint256 _amount) external onlyWhitelisted {
+        userCollateralBalance[_user] = _amount;
     }
 
-    function getUserBelowCollateraRation(uint256 basisPointsRation) external view returns (address[] memory, uint256) {
-        uint256 userCount = 0;
-        uint256 totalDebt = 0;
-         address[] memory belowRatioUsers = new address[](mintersAddresses.length);
+    function updateNetMintUser(address _user, uint256 _amount) external onlyWhitelisted {
+        netMintGlobal = netMintGlobal - netMintUser[_user];
+        netMintUser[_user] = _amount;
+    }
 
-        for (uint256 i = 0; i < mintersAddresses.length; i++) {
-      
-        uint256 userDebt = _updateUserDebtOutstanding(
-                netMintUser[mintersAddresses[i]],
-                netMintGlobal
+    function releaseCollateralAmount(uint256 _amount) external onlyWhitelisted {
+         bool transferSuccess = IERC20(collateral).transfer(
+                msg.sender,
+                _amount
             );
-        uint256 USDValueOfCollateral = getUSDValueOfCollateral(
-            userCollateralBalance[msg.sender]
-        );
 
-        if (USDValueOfCollateral < (userDebt * basisPointsRation) / 10000) {
-
-            totalDebt += userDebt;
-            belowRatioUsers[userCount++] = mintersAddresses[i];
-        }
-
-        }
-
-        // Resize the belowRatioUsers array to the correct size
-        address[] memory resizedBelowRatioUsers = new address[](userCount);
-        for (uint256 i = 0; i < userCount; i++) {
-            resizedBelowRatioUsers[i] = belowRatioUsers[i];
-        }
-
-        return (resizedBelowRatioUsers, totalDebt);
+            if (!transferSuccess) revert();
     }
-        
+
+    function getZUSD() external view returns (address){
+        return zUSD;
+    }
+
+    function getCollateralTokenAddress() external view returns (address) {
+        return collateral;
+    }
+    function getMinters() external view returns (address [] memory) {
+        return mintersAddresses;
+    }
     
 }
 
