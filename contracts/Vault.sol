@@ -21,11 +21,7 @@ error MintFailed();
 error BurnFailed();
 error ImpactFailed();
 
-contract Vault is
-    ReentrancyGuardUpgradeable,
-    OwnableUpgradeable
-{
-
+contract Vault is ReentrancyGuardUpgradeable, OwnableUpgradeable {
     address public collateral;
 
     address private Oracle;
@@ -63,7 +59,7 @@ contract Vault is
 
     address public treasuryWallet;
 
-    uint256 public  swapFee;
+    uint256 public swapFee;
 
     uint256 public globalMintersPercentOfSwapFee;
 
@@ -95,7 +91,7 @@ contract Vault is
      * Initializers
      */
 
-     function vault_init(
+    function vault_init(
         address _oracle,
         address _collateral
     ) external reinitializer(1) {
@@ -160,7 +156,6 @@ contract Vault is
 
     // event SetOracleAddress(address _address);
 
-
     // Modifier to check if the caller is whitelisted
     modifier onlyWhitelisted() {
         require(isWhitelisted(msg.sender), "Caller is not whitelisted");
@@ -188,7 +183,10 @@ contract Vault is
         uint256 indexToRemove = findWhitelistIndex(_address);
 
         // If the address is found in the whitelist, remove it
-        require(indexToRemove < whitelist.length, "Address not found in whitelist");
+        require(
+            indexToRemove < whitelist.length,
+            "Address not found in whitelist"
+        );
         if (indexToRemove < whitelist.length - 1) {
             whitelist[indexToRemove] = whitelist[whitelist.length - 1];
         }
@@ -196,7 +194,9 @@ contract Vault is
     }
 
     // Internal function to find the index of an address in the whitelist
-    function findWhitelistIndex(address _address) internal view returns (uint256) {
+    function findWhitelistIndex(
+        address _address
+    ) internal view returns (uint256) {
         for (uint256 i = 0; i < whitelist.length; i++) {
             if (whitelist[i] == _address) {
                 return i;
@@ -217,8 +217,7 @@ contract Vault is
         isTransactionsPaused();
 
         require(
-            IERC20(collateral).balanceOf(msg.sender) >=
-                _depositAmount,
+            IERC20(collateral).balanceOf(msg.sender) >= _depositAmount,
             "Insufficient balance"
         );
 
@@ -241,28 +240,30 @@ contract Vault is
 
         _mint(zUSD, msg.sender, _mintAmount);
 
-        if(globalDebt == 0 || netMintGlobal == 0) {
+        if (globalDebt == 0 || netMintGlobal == 0) {
             netMintChange += _mintAmount;
         } else {
-            netMintChange += netMintGlobal * _mintAmount * MULTIPLIER / globalDebt;
+            netMintChange +=
+                (netMintGlobal * _mintAmount * MULTIPLIER) /
+                globalDebt;
 
-            netMintChange = netMintChange / MULTIPLIER ;
+            netMintChange = netMintChange / MULTIPLIER;
         }
 
         grossMintUser[msg.sender] += _mintAmount;
 
         netMintUser[msg.sender] += netMintChange;
         netMintGlobal += netMintChange;
-          /**
+        /**
          * if this is user's first mint, add to minters list
          */
         bool addressExists = false;
 
         for (uint i = 0; i < mintersAddresses.length; i++) {
-        if (mintersAddresses[i] == msg.sender) {
-            addressExists = true;
-            break;
-        }
+            if (mintersAddresses[i] == msg.sender) {
+                addressExists = true;
+                break;
+            }
         }
 
         if (!addressExists && grossMintUser[msg.sender] > 0) {
@@ -287,15 +288,21 @@ contract Vault is
 
         uint256 swapAmount;
         uint256 mintAmount;
-        address _zTokenFromAddress = BakiOracleInterface(Oracle).getZToken(_zTokenFrom);
-        address _zTokenToAddress = BakiOracleInterface(Oracle).getZToken(_zTokenTo);
+        address _zTokenFromAddress = BakiOracleInterface(Oracle).getZToken(
+            _zTokenFrom
+        );
+        address _zTokenToAddress = BakiOracleInterface(Oracle).getZToken(
+            _zTokenTo
+        );
 
         require(
             IERC20(_zTokenFromAddress).balanceOf(msg.sender) >= _amount,
             "Insufficient balance"
         );
-        uint256 _zTokenFromUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenFrom);
-        uint256 _zTokenToUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenTo);
+        uint256 _zTokenFromUSDRate = BakiOracleInterface(Oracle)
+            .getZTokenUSDValue(_zTokenFrom);
+        uint256 _zTokenToUSDRate = BakiOracleInterface(Oracle)
+            .getZTokenUSDValue(_zTokenTo);
 
         /**
          * Get the USD values of involved zTokens
@@ -351,7 +358,7 @@ contract Vault is
         /**
          * Send the treasury amount to a treasury wallet
          */
-         _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
+        _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
 
         /**
          * Send the global minters fee from User to the global minters fee wallet
@@ -436,7 +443,6 @@ contract Vault is
         // emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
     }
 
-
     /**
      * Allow minters to claim rewards/fees on swap
      */
@@ -453,7 +459,6 @@ contract Vault is
         bool transferSuccess = IERC20(zUSD).transfer(msg.sender, amount);
         if (!transferSuccess) revert();
     }
-
 
     /**
      * Get user balance
@@ -488,14 +493,18 @@ contract Vault is
     /**
      * Get Collateral value in USD by user address
      */
-    function getCollateralBalanceByUserInUSD(address _user) external view returns (uint256) {
+    function getCollateralBalanceByUserInUSD(
+        address _user
+    ) external view returns (uint256) {
         return getUSDValueOfCollateral(userCollateralBalance[msg.sender]);
     }
 
     /**
      * Get Collateral value  by user address
      */
-    function getCollateralBalanceByUser(address _user) external view returns (uint256) {
+    function getCollateralBalanceByUser(
+        address _user
+    ) external view returns (uint256) {
         return userCollateralBalance[msg.sender];
     }
 
@@ -686,7 +695,8 @@ contract Vault is
          * If the token to be repayed is zUSD, skip the fees, mint, burn process and return the _amount directly
          */
         if (_zTokenAddress != zUSD) {
-            uint256 zTokenUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zToken);
+            uint256 zTokenUSDRate = BakiOracleInterface(Oracle)
+                .getZTokenUSDValue(_zToken);
 
             swapFeePerTransaction = swapFee * _amount;
 
@@ -781,20 +791,23 @@ contract Vault is
     }
 
     /**
-    * Get address of zUSD token
-    */
-    function getzUSDAddress() external returns(address) {
+     * Get address of zUSD token
+     */
+    function getzUSDAddress() external returns (address) {
         return zUSD = BakiOracleInterface(Oracle).getZToken("zusd");
     }
 
     /**
      * Helper function for global debt
      */
-    function getDebtHelper(string memory _zToken) internal view returns(uint256) {
+    function getDebtHelper(
+        string memory _zToken
+    ) internal view returns (uint256) {
         address _zTokenAddress = BakiOracleInterface(Oracle).getZToken(_zToken);
 
-        uint256 singleZToken = WadRayMath.wadDiv(IERC20(_zTokenAddress).totalSupply(),
-        BakiOracleInterface(Oracle).getZTokenUSDValue(_zToken)
+        uint256 singleZToken = WadRayMath.wadDiv(
+            IERC20(_zTokenAddress).totalSupply(),
+            BakiOracleInterface(Oracle).getZTokenUSDValue(_zToken)
         );
 
         return (singleZToken / HALF_MULTIPLIER);
@@ -805,9 +818,10 @@ contract Vault is
      */
     function getGlobalDebt() public view returns (uint256) {
         uint256 globalDebt;
-        string[] memory zTokenList = BakiOracleInterface(Oracle).getZTokenList();
+        string[] memory zTokenList = BakiOracleInterface(Oracle)
+            .getZTokenList();
 
-        for(uint256 i = 0; i < zTokenList.length; i++) {
+        for (uint256 i = 0; i < zTokenList.length; i++) {
             string memory zToken = zTokenList[i];
 
             globalDebt += getDebtHelper(zToken);
@@ -894,33 +908,40 @@ contract Vault is
         return true;
     }
 
-    function updateUserCollateralBalance(address _user, uint256 _amount) external onlyWhitelisted {
-        userCollateralBalance[_user] = _amount;
+    function updateUsersCollateralBalance(
+        address[] memory _user,
+        uint256 _amount
+    ) external onlyWhitelisted {
+        for (uint256 i = 0; i < _user.length; i++) {
+            userCollateralBalance[_user[i]] = _amount;
+        }
     }
 
-    function updateNetMintUser(address _user, uint256 _amount) external onlyWhitelisted {
-        netMintGlobal = netMintGlobal - netMintUser[_user];
-        netMintUser[_user] = _amount;
+    function updateNetMintUsers(
+        address[] memory _user,
+        uint256 _amount
+    ) external onlyWhitelisted {
+        for (uint256 i = 0; i < _user.length; i++) {
+            netMintGlobal = netMintGlobal - netMintUser[_user[i]];
+            netMintUser[_user[i]] = _amount;
+        }
     }
 
     function releaseCollateralAmount(uint256 _amount) external onlyWhitelisted {
-         bool transferSuccess = IERC20(collateral).transfer(
-                msg.sender,
-                _amount
-            );
+        bool transferSuccess = IERC20(collateral).transfer(msg.sender, _amount);
 
-            if (!transferSuccess) revert();
+        if (!transferSuccess) revert();
     }
 
-    function getZUSD() external view returns (address){
+    function getZUSD() external view returns (address) {
         return zUSD;
     }
 
     function getCollateralTokenAddress() external view returns (address) {
         return collateral;
     }
-    function getMinters() external view returns (address [] memory) {
+
+    function getMinters() external view returns (address[] memory) {
         return mintersAddresses;
     }
-
 }

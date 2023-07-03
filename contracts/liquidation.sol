@@ -29,9 +29,8 @@ contract Liquidation is
 
     uint256 private constant HALF_MULTIPLIER = 1e3;
 
-     uint256 public COLLATERIZATION_RATIO_THRESHOLD;
+    uint256 public COLLATERIZATION_RATIO_THRESHOLD;
 
-    uint256 public LIQUIDATION_REWARD;
 
     using AddressUpgradeable for address;
 
@@ -76,9 +75,28 @@ contract Liquidation is
 
 
     constructor(address _vaultAddress, address _alaAddress) {
+      require(_vaultAddress != address(0), "Vault Address must be non-zero");
+      require(_alaAddress != address(0), "ALA Address must be non-zero");
       vaultAddress = _vaultAddress;
       vault = Vault(_vaultAddress);
       alaLiquidation = IALALiquidation(_alaAddress);
+    }
+
+    /**
+     * set collaterization ratio threshold
+     */
+    function setCollaterizationRatioThreshold(
+        uint256 _value
+    ) external onlyOwner {
+        // Set an upper and lower bound on the new value of collaterization ratio threshold
+        require(
+            _value > 12 * 1e2 || _value < 20 * 1e2,
+            "value must be within the set limit"
+        );
+
+        COLLATERIZATION_RATIO_THRESHOLD = _value;
+
+        // emit SetCollaterizationRatioThreshold(_value);
     }
 
     function _burn(
@@ -133,12 +151,18 @@ contract Liquidation is
             totalDebt += userDebt;
             collateralBalanceTotal += collateralBalance;
             belowRatioUsers[userCount++] = mintersAddresses[i];
-            vault.updateUserCollateralBalance(mintersAddresses[i], 0);
-            vault.updateNetMintUser(mintersAddresses[i], 0);
-        
         }
 
         }
+
+        // Resize the belowRatioUsers array to the correct size
+        address[] memory resizedBelowRatioUsers = new address[](userCount);
+        for (uint256 i = 0; i < userCount; i++) {
+            resizedBelowRatioUsers[i] = belowRatioUsers[i];
+        }
+
+        vault.updateUsersCollateralBalance(resizedBelowRatioUsers, 0);
+        vault.updateNetMintUsers(resizedBelowRatioUsers, 0);
 
         vault.releaseCollateralAmount(collateralBalanceTotal);
 
@@ -148,6 +172,7 @@ contract Liquidation is
 
         emit Liquidate(msg.sender, totalDebt, collateralBalanceTotal);
     }
+    
 
 
     function releaseReward(uint256 expectedReward) external {
