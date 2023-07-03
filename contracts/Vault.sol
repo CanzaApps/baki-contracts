@@ -22,22 +22,15 @@ error BurnFailed();
 error ImpactFailed();
 
 contract Vault is
-    Initializable,
     ReentrancyGuardUpgradeable,
     OwnableUpgradeable
 {
-    /**
-     * addresses of both the collateral and ztokens
-     */
-    address private collateral;
-    address private zUSD;
-    address private zXAF;
-    address private zNGN;
-    address private zZAR;
+
+    address public collateral;
 
     address private Oracle;
 
-    uint256 private constant USD = 1e3;
+    address public zUSD;
 
     uint256 private constant MULTIPLIER = 1e6;
 
@@ -61,12 +54,6 @@ contract Vault is
      * Net Global Mint
      */
     uint256 public netMintGlobal;
-    /**
-     * map users to accrued fee balance
-     * store 75% swap fee to be shared by minters
-     * store 25% swap fee separately
-     * user => uint256
-     */
 
     mapping(address => uint256) public userAccruedFeeBalance;
 
@@ -76,15 +63,18 @@ contract Vault is
 
     address public treasuryWallet;
 
-    uint256 public swapFee;
+    uint256 public  swapFee;
 
     uint256 public globalMintersPercentOfSwapFee;
 
     uint256 public treasuryPercentOfSwapFee;
 
-    /**
-     * Store minters addresses as a list
-     */
+    /** run-time In function variables */
+    uint256 swapFeePerTransactionInUsd;
+    uint256 swapFeePerTransaction;
+    uint256 globalMintersFeePerTransaction;
+    uint256 treasuryFeePerTransaction;
+
     address[] public mintersAddresses;
 
     address[] public _blacklistedAddresses;
@@ -105,27 +95,19 @@ contract Vault is
      * Initializers
      */
 
-    function vault_init(
-        address _zUSD,
-        address _zNGN,
-        address _zXAF,
-        address _zZAR,
+     function vault_init(
         address _oracle,
         address _collateral
     ) external reinitializer(1) {
+        transactionsPaused = false;
+        Oracle = _oracle;
+        collateral = _collateral;
         COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
         LIQUIDATION_REWARD = 15;
         treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
         swapFee = WadRayMath.wadDiv(8, 1000);
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
-        transactionsPaused = false;
-        zUSD = _zUSD;
-        zNGN = _zNGN;
-        zXAF = _zXAF;
-        zZAR = _zZAR;
-        Oracle = _oracle;
-        collateral = _collateral;
 
         __Ownable_init();
     }
@@ -134,50 +116,49 @@ contract Vault is
      * @dev
      */
 
-    event Deposit(
-        address indexed _account,
-        address indexed _token,
-        uint256 _depositAmount,
-        uint256 _mintAmount
-    );
-    event Swap(
-        address indexed _account,
-        address indexed _zTokenFrom,
-        address indexed _zTokenTo
-    );
-    event Withdraw(
-        address indexed _account,
-        address indexed _token,
-        uint256 indexed _amountToWithdraw
-    );
-    event Liquidate(
-        address indexed _account,
-        uint256 indexed debt,
-        uint256 indexed rewards,
-        address liquidator
-    );
+    // event Deposit(
+    //     address indexed _account,
+    //     uint256 indexed _depositAmount,
+    //     uint256 indexed _mintAmount
+    // );
+    // event Swap(
+    //     address indexed _account,
+    //     string _zTokenFrom,
+    //     string _zTokenTo
+    // );
+    // event Withdraw(
+    //     address indexed _account,
+    //     string _token,
+    //     uint256 _amountToWithdraw
+    // );
+    // event Liquidate(
+    //     address indexed _account,
+    //     uint256 debt,
+    //     uint256 rewards,
+    //     address liquidator
+    // );
 
-    event AddCollateralAddress(address _address);
+    // event AddCollateralAddress(address _address);
 
-    event SetCollaterizationRatioThreshold(uint256 _value);
+    // event SetCollaterizationRatioThreshold(uint256 _value);
 
-    event SetLiquidationReward(uint256 _value);
+    // event SetLiquidationReward(uint256 _value);
 
-    event AddAddressToBlacklist(address _address);
+    // event AddAddressToBlacklist(address _address);
 
-    event RemoveAddressFromBlacklist(address _address);
+    // event RemoveAddressFromBlacklist(address _address);
 
-    event PauseTransactions();
+    // event PauseTransactions();
 
-    event AddTreasuryWallet(address _address);
+    // event AddTreasuryWallet(address _address);
 
-    event ChangeSwapFee(uint256 a, uint256 b);
+    // event ChangeSwapFee(uint256 a, uint256 b);
 
-    event ChangeGlobalMintersFee(uint256 a, uint256 b);
+    // event ChangeGlobalMintersFee(uint256 a, uint256 b);
 
-    event ChangeTreasuryFee(uint256 a, uint256 b);
+    // event ChangeTreasuryFee(uint256 a, uint256 b);
 
-    event SetOracleAddress(address _address);
+    // event SetOracleAddress(address _address);
 
 
     // Modifier to check if the caller is whitelisted
@@ -224,22 +205,20 @@ contract Vault is
         return whitelist.length;
     }
 
-    /** 
+    /**
     @notice Allows a user to deposit cUSD collateral in exchange for some amount of zUSD.
      _depositAmount  The amount of cUSD the user sent in the transaction
      */
     function depositAndMint(
         uint256 _depositAmount,
         uint256 _mintAmount
-    ) external nonReentrant {
-        blockBlacklistedAddresses();
+    ) external payable nonReentrant {
+        // blockBlacklistedAddresses();
         isTransactionsPaused();
-        uint256 _depositAmountWithDecimal = _getDecimal(_depositAmount);
-        uint256 _mintAmountWithDecimal = _getDecimal(_mintAmount);
 
         require(
             IERC20(collateral).balanceOf(msg.sender) >=
-                _depositAmountWithDecimal,
+                _depositAmount,
             "Insufficient balance"
         );
 
@@ -247,35 +226,52 @@ contract Vault is
         bool transferSuccess = IERC20(collateral).transferFrom(
             msg.sender,
             address(this),
-            _depositAmountWithDecimal
+            _depositAmount
         );
 
         if (!transferSuccess) revert();
 
-        userCollateralBalance[msg.sender] += _depositAmountWithDecimal;
+        userCollateralBalance[msg.sender] += _depositAmount;
 
-        totalCollateral += _depositAmountWithDecimal;
-        /**
+        totalCollateral += _depositAmount;
+
+        uint256 globalDebt = getGlobalDebt();
+
+        uint256 netMintChange;
+
+        _mint(zUSD, msg.sender, _mintAmount);
+
+        if(globalDebt == 0 || netMintGlobal == 0) {
+            netMintChange += _mintAmount;
+        } else {
+            netMintChange += netMintGlobal * _mintAmount * MULTIPLIER / globalDebt;
+
+            netMintChange = netMintChange / MULTIPLIER ;
+        }
+
+        grossMintUser[msg.sender] += _mintAmount;
+
+        netMintUser[msg.sender] += netMintChange;
+        netMintGlobal += netMintChange;
+          /**
          * if this is user's first mint, add to minters list
          */
-        if (grossMintUser[msg.sender] == 0) {
+        bool addressExists = false;
+
+        for (uint i = 0; i < mintersAddresses.length; i++) {
+        if (mintersAddresses[i] == msg.sender) {
+            addressExists = true;
+            break;
+        }
+        }
+
+        if (!addressExists && grossMintUser[msg.sender] > 0) {
             mintersAddresses.push(msg.sender);
         }
 
-        _mint(zUSD, msg.sender, _mintAmountWithDecimal);
-
-        netMintUser[msg.sender] += _mintAmountWithDecimal;
-        grossMintUser[msg.sender] += _mintAmountWithDecimal;
-
-        netMintGlobal += _mintAmountWithDecimal;
-
-        /**
-         * Update user outstanding debt after successful mint
-         * Check the impact of the mint
-         */
         _testImpact();
 
-        emit Deposit(msg.sender, collateral, _depositAmount, _mintAmount);
+        // emit Deposit(msg.sender, _depositAmount, _mintAmount);
     }
 
     /**
@@ -283,32 +279,29 @@ contract Vault is
      */
     function swap(
         uint256 _amount,
-        address _zTokenFrom,
-        address _zTokenTo
+        string calldata _zTokenFrom,
+        string calldata _zTokenTo
     ) external nonReentrant {
-        blockBlacklistedAddresses();
+        // blockBlacklistedAddresses();
         isTransactionsPaused();
 
-        uint256 _amountWithDecimal = _getDecimal(_amount);
-        uint256 swapFeePerTransactionInUsd;
         uint256 swapAmount;
         uint256 mintAmount;
-        uint256 swapFeePerTransaction;
-        uint256 globalMintersFeePerTransaction;
-        uint256 treasuryFeePerTransaction;
+        address _zTokenFromAddress = BakiOracleInterface(Oracle).getZToken(_zTokenFrom);
+        address _zTokenToAddress = BakiOracleInterface(Oracle).getZToken(_zTokenTo);
 
         require(
-            IERC20(_zTokenFrom).balanceOf(msg.sender) >= _amountWithDecimal,
+            IERC20(_zTokenFromAddress).balanceOf(msg.sender) >= _amount,
             "Insufficient balance"
         );
-        uint256 _zTokenFromUSDRate = getZTokenUSDRate(_zTokenFrom);
-        uint256 _zTokenToUSDRate = getZTokenUSDRate(_zTokenTo);
+        uint256 _zTokenFromUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenFrom);
+        uint256 _zTokenToUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenTo);
 
         /**
          * Get the USD values of involved zTokens
          * Handle minting of new tokens and burning of user tokens
          */
-        swapAmount = (_amountWithDecimal * _zTokenToUSDRate);
+        swapAmount = (_amount * _zTokenToUSDRate);
 
         swapAmount = swapAmount / _zTokenFromUSDRate;
 
@@ -327,14 +320,14 @@ contract Vault is
         /**
          * Track the USD value of the swap amount
          */
-        swapAmountInUSD = _amountWithDecimal * MULTIPLIER;
-        swapAmountInUSD = _amountWithDecimal / _zTokenFromUSDRate;
+        swapAmountInUSD = _amount * MULTIPLIER;
+        swapAmountInUSD = _amount / _zTokenFromUSDRate;
 
         totalSwapVolume += swapAmountInUSD;
 
-        _burn(_zTokenFrom, msg.sender, _amountWithDecimal);
+        _burn(_zTokenFromAddress, msg.sender, _amount);
 
-        _mint(_zTokenTo, msg.sender, mintAmount);
+        _mint(_zTokenToAddress, msg.sender, mintAmount);
 
         /**
          * Handle swap fees and rewards
@@ -358,7 +351,7 @@ contract Vault is
         /**
          * Send the treasury amount to a treasury wallet
          */
-        _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
+         _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
 
         /**
          * Send the global minters fee from User to the global minters fee wallet
@@ -375,7 +368,7 @@ contract Vault is
                 mintersRewardPerTransaction[mintersAddresses[i]] /
                 MULTIPLIER;
         }
-        emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
+        // emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
     }
 
     /**
@@ -384,15 +377,12 @@ contract Vault is
     function repayAndWithdraw(
         uint256 _amountToRepay,
         uint256 _amountToWithdraw,
-        address _zToken
+        string calldata _zToken
     ) external nonReentrant {
-        blockBlacklistedAddresses();
+        // blockBlacklistedAddresses();
         isTransactionsPaused();
 
-        uint256 _amountToRepayWithDecimal = _getDecimal(_amountToRepay);
-        uint256 _amountToWithdrawWithDecimal = _getDecimal(_amountToWithdraw);
-
-        uint256 amountToRepayinUSD = _repay(_amountToRepayWithDecimal, _zToken);
+        uint256 amountToRepayinUSD = _repay(_amountToRepay, _zToken);
 
         uint256 userDebt;
 
@@ -402,7 +392,7 @@ contract Vault is
         );
 
         require(
-            userCollateralBalance[msg.sender] >= _amountToWithdrawWithDecimal,
+            userCollateralBalance[msg.sender] >= _amountToWithdraw,
             "Insufficient Collateral"
         );
 
@@ -432,18 +422,18 @@ contract Vault is
         /**
          * @TODO - Implement actual transfer of cUSD _amountToWithdrawWithDecimal value
          */
-        userCollateralBalance[msg.sender] -= _amountToWithdrawWithDecimal;
+        userCollateralBalance[msg.sender] -= _amountToWithdraw;
 
         bool transferSuccess = IERC20(collateral).transfer(
             msg.sender,
-            _amountToWithdrawWithDecimal
+            _amountToWithdraw
         );
 
         if (!transferSuccess) revert();
 
         _testImpact();
 
-        emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
+        // emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
     }
 
 
@@ -523,7 +513,7 @@ contract Vault is
 
         COLLATERIZATION_RATIO_THRESHOLD = _value;
 
-        emit SetCollaterizationRatioThreshold(_value);
+        // emit SetCollaterizationRatioThreshold(_value);
     }
 
     /**
@@ -532,7 +522,7 @@ contract Vault is
     function setLiquidationReward(uint256 _value) external onlyOwner {
         LIQUIDATION_REWARD = _value;
 
-        emit SetLiquidationReward(_value);
+        // emit SetLiquidationReward(_value);
     }
 
     /**
@@ -548,7 +538,7 @@ contract Vault is
 
         _blacklistedAddresses.push(_address);
 
-        emit AddAddressToBlacklist(_address);
+        // emit AddAddressToBlacklist(_address);
     }
 
     /**
@@ -594,7 +584,7 @@ contract Vault is
 
         _blacklistedAddresses.pop();
 
-        emit RemoveAddressFromBlacklist(_address);
+        // emit RemoveAddressFromBlacklist(_address);
     }
 
     /**
@@ -607,7 +597,7 @@ contract Vault is
             transactionsPaused = false;
         }
 
-        emit PauseTransactions();
+        // emit PauseTransactions();
     }
 
     /**
@@ -618,25 +608,25 @@ contract Vault is
 
         treasuryWallet = _address;
 
-        emit AddTreasuryWallet(_address);
+        // emit AddTreasuryWallet(_address);
     }
 
     function changeSwapFee(uint256 a, uint256 b) external onlyOwner {
         swapFee = WadRayMath.wadDiv(a, b);
 
-        emit ChangeSwapFee(a, b);
+        // emit ChangeSwapFee(a, b);
     }
 
     function changeGlobalMintersFee(uint256 a, uint256 b) external onlyOwner {
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(a, b);
 
-        emit ChangeGlobalMintersFee(a, b);
+        // emit ChangeGlobalMintersFee(a, b);
     }
 
     function changeTreasuryFee(uint256 a, uint256 b) external onlyOwner {
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(a, b);
 
-        emit ChangeTreasuryFee(a, b);
+        // emit ChangeTreasuryFee(a, b);
     }
 
     /**
@@ -687,24 +677,16 @@ contract Vault is
      */
     function _repay(
         uint256 _amount,
-        address _zToken
+        string calldata _zToken
     ) internal returns (uint256) {
-        // require(IERC20(_zToken).balanceOf(msg.sender) >= _amount, "Insufficient balance");
         uint256 zUSDMintAmount = _amount;
-        uint256 swapFeePerTransactionInUsd;
-        uint256 swapFeePerTransaction;
-        uint256 globalMintersFeePerTransaction;
-        uint256 treasuryFeePerTransaction;
+        address _zTokenAddress = BakiOracleInterface(Oracle).getZToken(_zToken);
 
         /**
          * If the token to be repayed is zUSD, skip the fees, mint, burn process and return the _amount directly
          */
-        if (_zToken != zUSD) {
-            uint256 zTokenUSDRate = getZTokenUSDRate(_zToken);
-
-            /**
-             * Get the swap fee per transaction in USD
-             */
+        if (_zTokenAddress != zUSD) {
+            uint256 zTokenUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zToken);
 
             swapFeePerTransaction = swapFee * _amount;
 
@@ -727,12 +709,10 @@ contract Vault is
 
             zUSDMintAmount = zUSDMintAmount / zTokenUSDRate;
 
-            _burn(_zToken, msg.sender, _amount);
+            _burn(_zTokenAddress, msg.sender, _amount);
 
             _mint(zUSD, msg.sender, zUSDMintAmount);
-            /**
-             * Handle swap fees and rewards
-             */
+
             globalMintersFeePerTransaction =
                 globalMintersPercentOfSwapFee *
                 swapFeePerTransactionInUsd;
@@ -774,17 +754,6 @@ contract Vault is
     }
 
     /**
-     * Multiply values by 10^18
-     */
-    function _getDecimal(uint256 amount) internal virtual returns (uint256) {
-        uint256 decimalAmount;
-
-        decimalAmount = amount * 1e16;
-
-        return decimalAmount;
-    }
-
-    /**
      * Set Oracle contract address
      */
     function setOracleAddress(address _address) public onlyOwner {
@@ -792,7 +761,7 @@ contract Vault is
 
         Oracle = _address;
 
-        emit SetOracleAddress(_address);
+        // emit SetOracleAddress(_address);
     }
 
     /**
@@ -800,7 +769,7 @@ contract Vault is
      */
     function getUSDValueOfCollateral(
         uint256 _amount
-    ) public view returns (uint256) {
+    ) internal view returns (uint256) {
         uint256 USDValue;
         uint256 rate;
 
@@ -812,45 +781,37 @@ contract Vault is
     }
 
     /**
-     * Returns the appropriate USD exchange rate during a swap/repay
+    * Get address of zUSD token
+    */
+    function getzUSDAddress() external returns(address) {
+        return zUSD = BakiOracleInterface(Oracle).getZToken("zusd");
+    }
+
+    /**
+     * Helper function for global debt
      */
-    function getZTokenUSDRate(
-        address _address
-    ) internal virtual returns (uint256) {
-        uint256 zTokenUSDRate;
+    function getDebtHelper(string memory _zToken) internal view returns(uint256) {
+        address _zTokenAddress = BakiOracleInterface(Oracle).getZToken(_zToken);
 
-        if (_address == zNGN) {
-            zTokenUSDRate = BakiOracleInterface(Oracle).NGNUSD();
-        } else if (_address == zXAF) {
-            zTokenUSDRate = BakiOracleInterface(Oracle).XAFUSD();
-        } else if (_address == zZAR) {
-            zTokenUSDRate = BakiOracleInterface(Oracle).ZARUSD();
-        } else if (_address == zUSD) {
-            zTokenUSDRate = USD;
-        } else {
-            revert("Invalid");
-        }
+        uint256 singleZToken = WadRayMath.wadDiv(IERC20(_zTokenAddress).totalSupply(),
+        BakiOracleInterface(Oracle).getZTokenUSDValue(_zToken)
+        );
 
-        return zTokenUSDRate;
+        return (singleZToken / HALF_MULTIPLIER);
     }
 
     /**
      * Get Global Debt
      */
     function getGlobalDebt() public view returns (uint256) {
-        uint256 globalDebt = (IERC20(zUSD).totalSupply() * HALF_MULTIPLIER) +
-            WadRayMath.wadDiv(
-                IERC20(zNGN).totalSupply(),
-                BakiOracleInterface(Oracle).NGNUSD()
-            ) +
-            WadRayMath.wadDiv(
-                IERC20(zXAF).totalSupply(),
-                BakiOracleInterface(Oracle).XAFUSD()
-            ) +
-            WadRayMath.wadDiv(
-                IERC20(zZAR).totalSupply(),
-                BakiOracleInterface(Oracle).ZARUSD()
-            );
+        uint256 globalDebt;
+        string[] memory zTokenList = BakiOracleInterface(Oracle).getZTokenList();
+
+        for(uint256 i = 0; i < zTokenList.length; i++) {
+            string memory zToken = zTokenList[i];
+
+            globalDebt += getDebtHelper(zToken);
+        }
 
         return globalDebt;
     }
@@ -879,9 +840,7 @@ contract Vault is
 
             userDebtOutstanding = mintRatio * globalDebt;
 
-            uint256 tempMultiplier = MULTIPLIER * HALF_MULTIPLIER;
-
-            userDebtOutstanding = userDebtOutstanding / tempMultiplier;
+            userDebtOutstanding = userDebtOutstanding / MULTIPLIER;
 
             return userDebtOutstanding;
         }
@@ -900,7 +859,7 @@ contract Vault is
     }
 
     function isTransactionsPaused() internal view {
-        require(transactionsPaused == false, "transactions are paused");
+        require(transactionsPaused == false, "transactions paused");
     }
 
     /**
@@ -933,7 +892,7 @@ contract Vault is
         }
 
         return true;
-    } 
+    }
 
     function updateUserCollateralBalance(address _user, uint256 _amount) external onlyWhitelisted {
         userCollateralBalance[_user] = _amount;
@@ -963,6 +922,5 @@ contract Vault is
     function getMinters() external view returns (address [] memory) {
         return mintersAddresses;
     }
-    
-}
 
+}

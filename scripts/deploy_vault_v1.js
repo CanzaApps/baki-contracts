@@ -78,7 +78,7 @@ async function main() {
 
   const vault = await upgrades.deployProxy(
     Vault,
-    [zUSD, zNGN, zXAF, zZAR, Oracle, collateral],
+    [Oracle, collateral],
     {
       initializer: "vault_init",
     }
@@ -86,6 +86,8 @@ async function main() {
 
   await vault.deployed();
   console.log("Vault deployed to:", vault.address);
+
+  await 
 
   await setVaultAddress("zUSD", vault.address);
   await setVaultAddress("zNGN", vault.address);

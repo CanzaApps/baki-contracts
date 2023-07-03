@@ -25,7 +25,7 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     //User mint
     mapping(address => mapping(address => uint256)) private userMint;
 
-    address vault;
+    address private vault;
 
     /**
     * Initializers
@@ -36,14 +36,6 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
         //_mint(msg.sender, 1000 * 10**18 );
     }
 
-    /**
-     * Implement an onlyVault address
-     */
-    //  OnlyVault modifier
-    // modifier onlyVault {
-    //   require(msg.sender == vault);
-    //   _;
-    // }
     event Mint(
         address indexed _userAddress, 
         uint256 _amount
