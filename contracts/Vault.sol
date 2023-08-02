@@ -46,7 +46,7 @@ contract Vault is
      */
     mapping(address => uint256) public netMintUser;
 
-    mapping(address => uint256) private grossMintUser;
+    mapping(address => uint256) public grossMintUser;
 
     mapping(address => uint256) public userCollateralBalance;
 
@@ -89,6 +89,10 @@ contract Vault is
 
     uint256 public totalSwapVolume;
 
+    mapping(address => bool) public isUserBlacklisted;
+
+     bool public TxPaused;
+
     /**
      * Initializers
      */
@@ -97,7 +101,7 @@ contract Vault is
         address _oracle,
         address _collateral
     ) external reinitializer(1) {
-        transactionsPaused = false;
+        TxPaused = false;
         Oracle = _oracle;
         collateral = _collateral;
         COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
@@ -114,49 +118,49 @@ contract Vault is
      * @dev
      */
 
-    // event Deposit(
-    //     address indexed _account,
-    //     uint256 indexed _depositAmount,
-    //     uint256 indexed _mintAmount
-    // );
-    // event Swap(
-    //     address indexed _account,
-    //     string _zTokenFrom,
-    //     string _zTokenTo
-    // );
-    // event Withdraw(
-    //     address indexed _account,
-    //     string _token,
-    //     uint256 _amountToWithdraw
-    // );
-    // event Liquidate(
-    //     address indexed _account,
-    //     uint256 debt,
-    //     uint256 rewards,
-    //     address liquidator
-    // );
+    event Deposit(
+        address indexed _account,
+        uint256 indexed _depositAmount,
+        uint256 indexed _mintAmount
+    );
+    event Swap(
+        address indexed _account,
+        string _zTokenFrom,
+        string _zTokenTo
+    );
+    event Withdraw(
+        address indexed _account,
+        string _token,
+        uint256 _amountToWithdraw
+    );
+    event Liquidate(
+        address indexed _account,
+        uint256 debt,
+        uint256 rewards,
+        address liquidator
+    );
 
-    // event AddCollateralAddress(address _address);
+    event AddCollateralAddress(address _address);
 
-    // event SetCollaterizationRatioThreshold(uint256 _value);
+    event SetCollaterizationRatioThreshold(uint256 _value);
 
-    // event SetLiquidationReward(uint256 _value);
+    event SetLiquidationReward(uint256 _value);
 
-    // event AddAddressToBlacklist(address _address);
+    event AddAddressToBlacklist(address _address);
 
-    // event RemoveAddressFromBlacklist(address _address);
+    event RemoveAddressFromBlacklist(address _address);
 
-    // event PauseTransactions();
+    event PauseTransactions();
 
-    // event AddTreasuryWallet(address _address);
+    event AddTreasuryWallet(address _address);
 
-    // event ChangeSwapFee(uint256 a, uint256 b);
+    event ChangeSwapFee(uint256 a, uint256 b);
 
-    // event ChangeGlobalMintersFee(uint256 a, uint256 b);
+    event ChangeGlobalMintersFee(uint256 a, uint256 b);
 
-    // event ChangeTreasuryFee(uint256 a, uint256 b);
+    event ChangeTreasuryFee(uint256 a, uint256 b);
 
-    // event SetOracleAddress(address _address);
+    event SetOracleAddress(address _address);
 
     /** 
     @notice Allows a user to deposit cUSD collateral in exchange for some amount of zUSD.
@@ -166,13 +170,13 @@ contract Vault is
         uint256 _depositAmount,
         uint256 _mintAmount
     ) external payable nonReentrant {
-        // blockBlacklistedAddresses();
-        isTransactionsPaused();
+        blockBlacklistedAddresses(msg.sender);
+        isTxPaused();
         
         require(
             IERC20(collateral).balanceOf(msg.sender) >=
                 _depositAmount,
-            "Insufficient balance"
+            "IB"
         );
 
         // transfer cUSD tokens from user wallet to vault contract
@@ -195,9 +199,9 @@ contract Vault is
         _mint(zUSD, msg.sender, _mintAmount);
 
         if(globalDebt == 0 || netMintGlobal == 0) {
-            netMintChange += _mintAmount;
+            netMintChange = _mintAmount;
         } else {
-            netMintChange += netMintGlobal * _mintAmount * MULTIPLIER / globalDebt;
+            netMintChange = netMintGlobal * _mintAmount * MULTIPLIER / globalDebt;
 
             netMintChange = netMintChange / MULTIPLIER ;
         }
@@ -224,7 +228,7 @@ contract Vault is
 
         _testImpact();
 
-        // emit Deposit(msg.sender, _depositAmount, _mintAmount);
+        emit Deposit(msg.sender, _depositAmount, _mintAmount);
     }
 
     /**
@@ -235,8 +239,8 @@ contract Vault is
         string calldata _zTokenFrom,
         string calldata _zTokenTo
     ) external nonReentrant {
-        // blockBlacklistedAddresses();
-        isTransactionsPaused();
+        blockBlacklistedAddresses(msg.sender);
+        isTxPaused();
 
         uint256 swapAmount;
         uint256 mintAmount;
@@ -245,7 +249,7 @@ contract Vault is
 
         require(
             IERC20(_zTokenFromAddress).balanceOf(msg.sender) >= _amount,
-            "Insufficient balance"
+            "IB"
         );
         uint256 _zTokenFromUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenFrom);
         uint256 _zTokenToUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenTo);
@@ -321,7 +325,7 @@ contract Vault is
                 mintersRewardPerTransaction[mintersAddresses[i]] /
                 MULTIPLIER;
         }
-        // emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
+        emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
     }
 
     /**
@@ -332,8 +336,8 @@ contract Vault is
         uint256 _amountToWithdraw,
         string calldata _zToken
     ) external nonReentrant {
-        // blockBlacklistedAddresses();
-        isTransactionsPaused();
+        blockBlacklistedAddresses(msg.sender);
+       isTxPaused();
 
         uint256 amountToRepayinUSD = _repay(_amountToRepay, _zToken);
 
@@ -346,17 +350,13 @@ contract Vault is
 
         require(
             userCollateralBalance[msg.sender] >= _amountToWithdraw,
-            "Insufficient Collateral"
+            "IC"
         );
 
         require(
             userDebt >= amountToRepayinUSD,
-            "Amount to repay greater than Debt"
+            "A>D"
         );
-
-        /**
-         * Substract withdraw from current net mint value and assign new mint value
-         */
 
         if (userDebt != 0) {
             uint256 amountToSubtract = (netMintUser[msg.sender] *
@@ -369,12 +369,6 @@ contract Vault is
 
         _burn(zUSD, msg.sender, amountToRepayinUSD);
 
-        /**
-         * Test impact after burn
-         */
-        /**
-         * @TODO - Implement actual transfer of cUSD _amountToWithdrawWithDecimal value
-         */
         userCollateralBalance[msg.sender] -= _amountToWithdraw;
 
         bool transferSuccess = IERC20(collateral).transfer(
@@ -386,52 +380,38 @@ contract Vault is
 
         _testImpact();
 
-        // emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
+        emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
     }
 
     function liquidate(address _user) external nonReentrant {
-        // blockBlacklistedAddresses();
-        isTransactionsPaused();
+        blockBlacklistedAddresses(msg.sender);
+        isTxPaused();
 
         uint256 userDebt;
 
         bool isUserInLiquidationZone = checkUserForLiquidation(_user);
         require(
             isUserInLiquidationZone == true,
-            "User is not in the liquidation zone"
+            "!LZ"
         );
 
         uint totalRewards = getPotentialTotalReward(_user);
 
-        /**
-         * Update the user's debt balance with latest price feeds
-         */
         userDebt = _updateUserDebtOutstanding(
             netMintUser[_user],
             netMintGlobal
         );
 
-        /**
-         * check if the liquidator has sufficient zUSD to repay the debt
-         * burn the zUSD
-         */
         require(
             IERC20(zUSD).balanceOf(msg.sender) >= userDebt,
-            "Liquidator does not have sufficient zUSD to repay debt"
+            "!LzUSD"
         );
 
-        /**
-         * Get reward fee
-         * Send the equivalent of debt as collateral and also a 10% fee to the liquidator
-         */
         netMintGlobal = netMintGlobal - netMintUser[_user];
         netMintUser[_user] = 0;
 
         _burn(zUSD, msg.sender, userDebt);
 
-        /**
-         * Send total rewards to Liquidator
-         */
         if (userCollateralBalance[_user] <= totalRewards) {
             userCollateralBalance[_user] = 0;
 
@@ -452,7 +432,7 @@ contract Vault is
             if (!transferSuccess) revert();
         }
 
-        // emit Liquidate(_user, userDebt, totalRewards, msg.sender);
+        emit Liquidate(_user, userDebt, totalRewards, msg.sender);
     }
 
     /**
@@ -461,7 +441,7 @@ contract Vault is
     function claimFees() external nonReentrant {
         require(
             userAccruedFeeBalance[msg.sender] > 0,
-            "User has no accumulated rewards"
+            "!UR"
         );
         uint256 amount;
 
@@ -489,9 +469,9 @@ contract Vault is
 
         require(
             isUserInLiquidationZone == true,
-            "User is not in the liquidation zone"
+            "!LZ"
         );
-        require(_userDebt > 0, "User has no debt");
+        require(_userDebt > 0, "!UD");
 
         uint256 rewardFee = (_userDebt * LIQUIDATION_REWARD) / 100;
 
@@ -575,7 +555,7 @@ contract Vault is
 
         require(
             isUserAlreadyInLiquidationArray == true,
-            "user is not in the liquidation zone"
+            "!LZ"
         );
 
         uint256 index;
@@ -597,30 +577,19 @@ contract Vault is
      * Check User for liquidation
      */
     function checkUserForLiquidation(address _user) public view returns (bool) {
-        require(_user != address(0), "address cannot be a zero address");
+        require(_user != address(0), "ZA");
 
         uint256 userDebt;
         uint256 userCollateralRatio;
 
-        /**
-         * Get the USD value of the user's collateral
-         */
         uint256 USDValueOfCollateral = getUSDValueOfCollateral(
             userCollateralBalance[_user]
         );
 
-        /**
-         * Update the user's debt balance with latest price feeds
-         */
         userDebt = _updateUserDebtOutstanding(
             netMintUser[_user],
             netMintGlobal
         );
-
-        /**
-         * Ensure user has debt before progressing
-         * Update user's collateral ratio
-         */
 
         if (userDebt != 0) {
             userCollateralRatio =
@@ -670,18 +639,18 @@ contract Vault is
     /**
      * set collaterization ratio threshold
      */
-    function setCollaterizationRatioThreshold(
+      function setCollaterizationRatioThreshold(
         uint256 _value
-    ) external onlyOwner {
+    ) external {
         // Set an upper and lower bound on the new value of collaterization ratio threshold
         require(
             _value > 12 * 1e2 || _value < 20 * 1e2,
-            "value must be within the set limit"
+            "!SL"
         );
 
         COLLATERIZATION_RATIO_THRESHOLD = _value;
 
-        // emit SetCollaterizationRatioThreshold(_value);
+        emit SetCollaterizationRatioThreshold(_value);
     }
 
     /**
@@ -690,111 +659,80 @@ contract Vault is
     function setLiquidationReward(uint256 _value) external onlyOwner {
         LIQUIDATION_REWARD = _value;
 
-        // emit SetLiquidationReward(_value);
-    }
-
-    /**
-     * Add to blacklist
-     */
-    function addAddressToBlacklist(address _address) external onlyOwner {
-        bool isAddressBlacklisted = checkForBlacklistedAddress(_address);
-
-        require(
-            isAddressBlacklisted == false,
-            "address is already a blacklisted address"
-        );
-
-        _blacklistedAddresses.push(_address);
-
-        // emit AddAddressToBlacklist(_address);
-    }
-
-    /**
-     * Get blacklisted addresses
-     */
-    function getBlacklistedAddresses() public view returns (address[] memory) {
-        return _blacklistedAddresses;
+        emit SetLiquidationReward(_value);
     }
 
     /**
      * Check for blacklisted address
      */
-    function checkForBlacklistedAddress(
-        address _address
-    ) public view returns (bool) {
-        for (uint256 i = 0; i < _blacklistedAddresses.length; i++) {
-            if (_blacklistedAddresses[i] == _address) {
-                return true;
-            }
-        }
-        return false;
+       function blacklistAddress(address _address) external {
+
+        require(!isUserBlacklisted[_address],"BA");
+
+        isUserBlacklisted[_address] = true;
+
+        emit AddAddressToBlacklist(_address);
     }
 
     /**
      * Remove from blacklist
      */
-    function removeAddressFromBlacklist(address _address) external onlyOwner {
-        bool isAddressBlacklisted = checkForBlacklistedAddress(_address);
+    function removeAddressFromBlacklist(address _address) external {
 
-        require(isAddressBlacklisted == true, "not blacklisted address");
+        require(isUserBlacklisted[_address], "!BA");
 
-        uint256 index;
+        isUserBlacklisted[_address] = false;
 
-        for (uint256 i = 0; i < _blacklistedAddresses.length; i++) {
-            if (_blacklistedAddresses[i] == _address) {
-                index = i;
-            }
-        }
-
-        _blacklistedAddresses[index] = _blacklistedAddresses[
-            _blacklistedAddresses.length - 1
-        ];
-
-        _blacklistedAddresses.pop();
-
-        // emit RemoveAddressFromBlacklist(_address);
+        emit RemoveAddressFromBlacklist(_address);
     }
-
     /**
      * Pause transactions
      */
-    function pauseTransactions() external onlyOwner {
-        if (transactionsPaused == false) {
-            transactionsPaused = true;
-        } else {
-            transactionsPaused = false;
-        }
+    function pauseTransactions() external {
+       require(TxPaused = false, "TxP true");
 
-        // emit PauseTransactions();
+       TxPaused = true;
+
+        emit PauseTransactions();
+    }
+
+       /**
+     * Pause transactions
+     */
+    function unPauseTransactions() external {
+        require(TxPaused = true, "TxP false");
+
+         TxPaused = false;
+
     }
 
     /**
      * Change swap variables
      */
-    function addTreasuryWallet(address _address) external onlyOwner {
-        require(_address != address(0), "address cannot be a zero address");
+    function addTreasuryWallet(address _address) external {
+        require(_address != address(0), "ZA");
 
         treasuryWallet = _address;
 
-        // emit AddTreasuryWallet(_address);
+        emit AddTreasuryWallet(_address);
     }
 
     function changeSwapFee(uint256 a, uint256 b) external onlyOwner {
         swapFee = WadRayMath.wadDiv(a, b);
 
-        // emit ChangeSwapFee(a, b);
+        emit ChangeSwapFee(a, b);
     }
 
     function changeGlobalMintersFee(uint256 a, uint256 b) external onlyOwner {
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(a, b);
 
-        // emit ChangeGlobalMintersFee(a, b);
+        emit ChangeGlobalMintersFee(a, b);
     }
 
     function changeTreasuryFee(uint256 a, uint256 b) external onlyOwner {
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(a, b);
 
-        // emit ChangeTreasuryFee(a, b);
+        emit ChangeTreasuryFee(a, b);
     }
 
     /**
@@ -924,12 +862,12 @@ contract Vault is
     /**
      * Set Oracle contract address
      */
-    function setOracleAddress(address _address) public onlyOwner {
-        require(_address != address(0), "address cannot be a zero address");
+   function setOracleAddress(address _address) public {
+        require(_address != address(0), "ZA");
 
         Oracle = _address;
 
-        // emit SetOracleAddress(_address);
+        emit SetOracleAddress(_address);
     }
 
     /**
@@ -971,7 +909,7 @@ contract Vault is
     /**
      * Get Global Debt
      */
-    function getGlobalDebt() public view returns (uint256) {
+  function getGlobalDebt() public view returns (uint256) {
         uint256 globalDebt;
         string[] memory zTokenList = BakiOracleInterface(Oracle).getZTokenList();
         
@@ -991,8 +929,7 @@ contract Vault is
     /**
      * Get User Outstanding Debt
      */
-
-    function _updateUserDebtOutstanding(
+ function _updateUserDebtOutstanding(
         uint256 _netMintUserzUSDValue,
         uint256 _netMintGlobalzUSDValue
     ) public view returns (uint256) {
@@ -1001,14 +938,14 @@ contract Vault is
             uint256 userDebtOutstanding;
             uint256 mintRatio;
 
+            uint256 temp = _netMintUserzUSDValue * globalDebt;
+
             mintRatio = WadRayMath.wadDiv(
-                _netMintUserzUSDValue,
+                temp,
                 _netMintGlobalzUSDValue
             );
 
-            userDebtOutstanding = mintRatio * globalDebt;
-
-            userDebtOutstanding = userDebtOutstanding / MULTIPLIER;
+            userDebtOutstanding = mintRatio / MULTIPLIER;
 
             return userDebtOutstanding;
         }
@@ -1018,22 +955,18 @@ contract Vault is
     /**
      * @dev modifier to check for blacklisted addresses
      */
-    function blockBlacklistedAddresses() internal view {
-        for (uint i = 0; i < _blacklistedAddresses.length; i++) {
-            if (msg.sender == _blacklistedAddresses[i]) {
-                revert("address blacklisted");
-            }
-        }
+    function blockBlacklistedAddresses(address _address) internal view {
+        require(!isUserBlacklisted[_address], "BL");
     }
 
-    function isTransactionsPaused() internal view {
-        require(transactionsPaused == false, "transactions paused");
+    function isTxPaused() internal view {
+        require(TxPaused == false, "TP");
     }
 
     /**
      * Helper function to test the impact of a transaction i.e mint, burn, deposit or withdrawal by a user
      */
-    function _testImpact() internal view returns (bool) {
+     function _testImpact() internal view returns (bool) {
         uint256 userDebt;
         uint256 USDValueOfCollateral;
 
@@ -1051,11 +984,11 @@ contract Vault is
             );
 
             uint256 collateralRatioMultipliedByDebt = (userDebt *
-                COLLATERIZATION_RATIO_THRESHOLD) / 1e3;
+                COLLATERIZATION_RATIO_THRESHOLD) / HALF_MULTIPLIER;
 
             require(
                 USDValueOfCollateral >= collateralRatioMultipliedByDebt,
-                "Insufficient collateral"
+                "IC"
             );
         }
 

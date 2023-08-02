@@ -1,5 +1,9 @@
 {
   "name": "hardhat-project",
+  "scripts": {
+    "deploy": "hardhat run --network fuji scripts/deploy_vault_v1.js ",
+    "upgrade": "hardhat run --network fuji scripts/upgrade_vault.js "
+  },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-waffle": "^2.0.3",

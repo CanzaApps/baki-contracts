@@ -7,6 +7,8 @@ let tokens = {
   zZAF: null,
 };
 
+let Oracle;
+
 async function deployToken(_name, _symbol) {
   const ZToken = await ethers.getContractFactory("ZToken");
   console.log(`deploying ${_name}`);
@@ -16,6 +18,11 @@ async function deployToken(_name, _symbol) {
   await ztoken.deployed();
   tokens[_name] = ztoken.address;
   console.log(`${_name} token is deployed at ${ztoken.address}`);
+
+  // const oracleInstance = await hre.ethers.getContractAt(Oracle);
+
+  // await oracleInstance.addZToken(_name, ztoken.address);
+
   return ztoken.address;
 }
 
@@ -66,15 +73,17 @@ async function deployCollateral() {
 async function main() {
   const Vault = await ethers.getContractFactory("Vault");
 
-  // deploy ztokens and oracle contracts
+  Oracle = await deployOracle();
+
+  console.log(Oracle);
+
+  // deploy ztokens contracts
   const zUSD = await deployToken("zUSD", "zUSD");
   const zNGN = await deployToken("zNGN", "zNGN");
   const zZAR = await deployToken("zZAR", "zZAR");
   const zXAF = await deployToken("zXAF", "zXAF");
 
   const collateral = await deployCollateral();
-
-  const Oracle = await deployOracle();
 
   const vault = await upgrades.deployProxy(
     Vault,
@@ -87,7 +96,9 @@ async function main() {
   await vault.deployed();
   console.log("Vault deployed to:", vault.address);
 
-  await 
+  // const vaultInstance = await hre.ethers.getContractAt(vault.address);
+
+  // await vaultInstance.getzUSDAddress;
 
   await setVaultAddress("zUSD", vault.address);
   await setVaultAddress("zNGN", vault.address);
