@@ -623,7 +623,7 @@ contract Vault is
      */
       function setCollaterizationRatioThreshold(
         uint256 _value
-    ) external {
+    ) external onlyOwner {
         // Set an upper and lower bound on the new value of collaterization ratio threshold
         require(
             _value > 12 * 1e2 || _value < 20 * 1e2,
@@ -647,7 +647,7 @@ contract Vault is
     /**
      * Check for blacklisted address
      */
-       function blacklistAddress(address _address) external {
+       function blacklistAddress(address _address) external onlyOwner {
 
         require(!isUserBlacklisted[_address],"BA");
 
@@ -659,7 +659,7 @@ contract Vault is
     /**
      * Remove from blacklist
      */
-    function removeAddressFromBlacklist(address _address) external {
+    function removeAddressFromBlacklist(address _address) external onlyOwner {
 
         require(isUserBlacklisted[_address], "!BA");
 
@@ -670,7 +670,7 @@ contract Vault is
     /**
      * Pause transactions
      */
-    function pause() external {
+    function pause() external onlyOwner {
        require(TxPaused = false, "TxP true");
 
        TxPaused = true;
@@ -681,7 +681,7 @@ contract Vault is
        /**
      * Pause transactions
      */
-    function unPause() external {
+    function unPause() external onlyOwner {
         require(TxPaused = true, "TxP false");
 
         TxPaused = false;
@@ -691,7 +691,7 @@ contract Vault is
     /**
      * Change swap variables
      */
-    function addTreasuryWallet(address _address) external {
+    function addTreasuryWallet(address _address) external onlyOwner{
         require(_address != address(0), "ZA");
 
         treasuryWallet = _address;
@@ -853,7 +853,7 @@ contract Vault is
     /**
      * Set Oracle contract address
      */
-   function setOracleAddress(address _address) public {
+   function setOracleAddress(address _address) external onlyOwner {
         require(_address != address(0), "ZA");
 
         Oracle = _address;
