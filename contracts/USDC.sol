@@ -41,12 +41,6 @@ contract USDC is Context, USDCInterface, IERC20, Ownable, IERC20Metadata {
         _mint(msg.sender, 1);
     }
 
-    //Global mint
-    mapping(address => uint256) private globalMint;
-
-    //User mint
-    mapping(address => mapping(address => uint256)) private userMint;
-
     //  OnlyVault modifier
     // modifier onlyVault {
     //   require(msg.sender == vault);
@@ -62,12 +56,6 @@ contract USDC is Context, USDCInterface, IERC20, Ownable, IERC20Metadata {
         returns (bool)
     {
         _mint(_userAddress, _amount);
-
-        //increment global mint value
-        globalMint[address(this)] += _amount;
-
-        //increment user mint value
-        userMint[_userAddress][address(this)] += _amount;
 
         return true;
     }

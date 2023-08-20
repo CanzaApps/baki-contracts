@@ -19,12 +19,6 @@ contract CUSD is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     string private _name;
     string private _symbol;
 
-     //Global mint
-    mapping(address => uint256) private globalMint;
-
-    //User mint
-    mapping(address => mapping(address => uint256)) private userMint;
-
     address vault;
 
     /**
@@ -95,20 +89,6 @@ contract CUSD is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
 
     function vaultAddress() public view returns (address) {
         return vault;
-    }
-
-    /**
-     * @dev Returns the minted token value for a particular user
-     */
-    function getUserMintValue(address _address) public view returns (uint256) {
-        return userMint[_address][address(this)];
-    }
-
-    /**
-     * @dev Returns the total minted token value
-     */
-    function getGlobalMint() public view returns (uint256) {
-        return globalMint[address(this)];
     }
 
     /**

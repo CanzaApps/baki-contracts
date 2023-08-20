@@ -95,6 +95,8 @@ contract Vault is
 
     bool public TxPaused;
 
+    mapping(address => bool) public isMinter;
+
     /**
      * Initializers
      */
@@ -212,17 +214,9 @@ contract Vault is
         /**
          * if this is user's first mint, add to minters list
          */
-        bool addressExists = false;
-
-        for (uint i = 0; i < mintersAddresses.length; i++) {
-        if (mintersAddresses[i] == msg.sender) {
-            addressExists = true;
-            break;
-        }
-        }
-
-        if (!addressExists && grossMintUser[msg.sender] > 0) {
+        if (!isMinter[msg.sender] && grossMintUser[msg.sender] > 0) {
             mintersAddresses.push(msg.sender);
+            isMinter[msg.sender] = true;
         }
 
         _testImpact();
@@ -298,6 +292,8 @@ contract Vault is
 
         globalMintersFee += globalMintersFeePerTransaction;
 
+        getSwapReward();
+
         treasuryFeePerTransaction =
             treasuryPercentOfSwapFee *
             swapFeePerTransactionInUsd;
@@ -314,16 +310,6 @@ contract Vault is
          */
         _mint(zUSD, address(this), globalMintersFeePerTransaction);
 
-        for (uint256 i = 0; i < mintersAddresses.length; i++) {
-            mintersRewardPerTransaction[mintersAddresses[i]] =
-                ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
-                    netMintGlobal) *
-                globalMintersFeePerTransaction;
-
-            userAccruedFeeBalance[mintersAddresses[i]] +=
-                mintersRewardPerTransaction[mintersAddresses[i]] /
-                MULTIPLIER;
-        }
         emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
     }
 
@@ -823,6 +809,8 @@ contract Vault is
 
             globalMintersFee += globalMintersFeePerTransaction;
 
+            getSwapReward();
+
             treasuryFeePerTransaction =
                 treasuryPercentOfSwapFee *
                 swapFeePerTransactionInUsd;
@@ -837,17 +825,6 @@ contract Vault is
              * Send the global minters fee from User to the global minters fee wallet
              */
             _mint(zUSD, address(this), globalMintersFeePerTransaction);
-
-            for (uint256 i = 0; i < mintersAddresses.length; i++) {
-                mintersRewardPerTransaction[mintersAddresses[i]] =
-                    ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
-                        netMintGlobal) *
-                    globalMintersFeePerTransaction;
-
-                userAccruedFeeBalance[mintersAddresses[i]] +=
-                    mintersRewardPerTransaction[mintersAddresses[i]] /
-                    MULTIPLIER;
-            }
         }
 
         return zUSDMintAmount;
@@ -885,6 +862,22 @@ contract Vault is
     */
     function getzUSDAddress() external returns(address) {
         return zUSD = BakiOracleInterface(Oracle).getZToken("zusd");
+    }
+
+     /**
+    * View minter's reward Helper
+    */
+    function getSwapReward() internal returns(uint256) {
+        uint256 x = netMintUser[msg.sender] * globalMintersFee;
+
+        uint256 mintRatio = WadRayMath.wadDiv(
+            x,
+            netMintGlobal
+        );
+
+        userAccruedFeeBalance[msg.sender] = mintRatio / MULTIPLIER;
+
+        return userAccruedFeeBalance[msg.sender];
     }
 
     /**
