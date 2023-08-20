@@ -103,11 +103,13 @@ contract Vault is
 
      function vault_init(
         address _oracle,
-        IERC20 _collateral
+        IERC20 _collateral,
+        address _zusd
     ) external initializer {
         TxPaused = false;
         Oracle = _oracle;
         collateral = _collateral;
+        zUSD = _zusd;
         COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
         LIQUIDATION_REWARD = 15;
         treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
