@@ -102,7 +102,7 @@ contract Vault is
      function vault_init(
         address _oracle,
         IERC20 _collateral
-    ) external reinitializer(1) {
+    ) external initializer {
         TxPaused = false;
         Oracle = _oracle;
         collateral = _collateral;
