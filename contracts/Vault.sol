@@ -992,4 +992,6 @@ contract Vault is
 
         return true;
     }
+
+    uint256[50] private __gap;
 }
