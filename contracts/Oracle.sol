@@ -66,6 +66,7 @@ contract BakiOracle is Ownable, BakiOracleInterface {
         address zToken = getZToken(_name);
 
         require(zToken != address(0), "zToken does not exist");
+        require(_value >= 1, "Invalid value");
 
         zTokenUSDValue[zToken] = _value;
 
