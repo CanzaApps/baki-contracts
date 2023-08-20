@@ -541,7 +541,7 @@ contract Vault is
     /**
      * Helper function to remove a user from the liquidation list
      */
-    function _removeUserFromLiquidationList(address _user) internal onlyOwner {
+    function _removeUserFromLiquidationList(address _user) internal {
         bool isUserAlreadyInLiquidationArray = _checkIfUserAlreadyExistsInLiquidationList(
                 _user
             );
