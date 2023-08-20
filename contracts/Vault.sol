@@ -700,17 +700,27 @@ contract Vault is
     function changeSwapFee(uint256 a, uint256 b) external onlyOwner {
         swapFee = WadRayMath.wadDiv(a, b);
 
+        require(swapFee <= MULTIPLIER, "IsF");
+
         emit ChangeSwapFee(a, b);
     }
 
     function changeGlobalMintersFee(uint256 a, uint256 b) external onlyOwner {
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(a, b);
 
+        uint256 x = globalMintersPercentOfSwapFee + treasuryPercentOfSwapFee;
+
+        require(x == MULTIPLIER, "IGMF");
+
         emit ChangeGlobalMintersFee(a, b);
     }
 
     function changeTreasuryFee(uint256 a, uint256 b) external onlyOwner {
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(a, b);
+
+        uint256 x = globalMintersPercentOfSwapFee + treasuryPercentOfSwapFee;
+
+        require(x == MULTIPLIER, "ITF");
 
         emit ChangeTreasuryFee(a, b);
     }
