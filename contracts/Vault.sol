@@ -114,6 +114,7 @@ contract Vault is
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
 
         __Ownable_init();
+        __ReentrancyGuard_init();
     }
 
     /**
