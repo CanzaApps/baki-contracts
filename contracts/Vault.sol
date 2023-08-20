@@ -91,7 +91,7 @@ contract Vault is
 
     mapping(address => bool) public isUserBlacklisted;
 
-     bool public TxPaused;
+    bool public TxPaused;
 
     /**
      * Initializers
@@ -139,8 +139,6 @@ contract Vault is
         uint256 rewards,
         address liquidator
     );
-
-    event AddCollateralAddress(address _address);
 
     event SetCollaterizationRatioThreshold(uint256 _value);
 
@@ -688,21 +686,21 @@ contract Vault is
     /**
      * Pause transactions
      */
-    function pauseTransactions() external {
+    function pause() external {
        require(TxPaused = false, "TxP true");
 
        TxPaused = true;
 
-        emit PauseTransactions();
+       emit PauseTransactions();
     }
 
        /**
      * Pause transactions
      */
-    function unPauseTransactions() external {
+    function unPause() external {
         require(TxPaused = true, "TxP false");
 
-         TxPaused = false;
+        TxPaused = false;
 
     }
 
@@ -959,7 +957,7 @@ contract Vault is
         require(!isUserBlacklisted[_address], "BL");
     }
 
-    function isTxPaused() internal view {
+    function isTxActive() internal view {
         require(TxPaused == false, "TP");
     }
 
