@@ -9,6 +9,7 @@
 pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -25,8 +26,9 @@ contract Vault is
     ReentrancyGuardUpgradeable,
     OwnableUpgradeable
 {
-   
-    address public collateral;
+    using SafeERC20 for IERC20;
+    
+    IERC20 public collateral;
 
     address private Oracle;
 
@@ -99,7 +101,7 @@ contract Vault is
 
      function vault_init(
         address _oracle,
-        address _collateral
+        IERC20 _collateral
     ) external reinitializer(1) {
         TxPaused = false;
         Oracle = _oracle;
@@ -172,19 +174,16 @@ contract Vault is
         isTxPaused();
         
         require(
-            IERC20(collateral).balanceOf(msg.sender) >=
+            collateral.balanceOf(msg.sender) >=
                 _depositAmount,
             "IB"
         );
 
-        // transfer cUSD tokens from user wallet to vault contract
-        bool transferSuccess = IERC20(collateral).transferFrom(
+        collateral.safeTransferFrom(
             msg.sender,
             address(this),
             _depositAmount
         );
-
-        if (!transferSuccess) revert();
 
         userCollateralBalance[msg.sender] += _depositAmount;
 
@@ -208,7 +207,8 @@ contract Vault is
 
         netMintUser[msg.sender] += netMintChange;
         netMintGlobal += netMintChange;
-          /**
+        
+        /**
          * if this is user's first mint, add to minters list
          */
         bool addressExists = false;
@@ -335,7 +335,7 @@ contract Vault is
         string calldata _zToken
     ) external nonReentrant {
         blockBlacklistedAddresses(msg.sender);
-       isTxPaused();
+        isTxPaused();
 
         uint256 amountToRepayinUSD = _repay(_amountToRepay, _zToken);
 
@@ -369,12 +369,10 @@ contract Vault is
 
         userCollateralBalance[msg.sender] -= _amountToWithdraw;
 
-        bool transferSuccess = IERC20(collateral).transfer(
+        collateral.safeTransfer(
             msg.sender,
             _amountToWithdraw
         );
-
-        if (!transferSuccess) revert();
 
         _testImpact();
 
@@ -413,21 +411,18 @@ contract Vault is
         if (userCollateralBalance[_user] <= totalRewards) {
             userCollateralBalance[_user] = 0;
 
-            bool transferSuccess = IERC20(collateral).transfer(
+            collateral.safeTransfer(
                 msg.sender,
                 totalRewards
             );
 
-            if (!transferSuccess) revert();
         } else {
             userCollateralBalance[_user] -= totalRewards;
 
-            bool transferSuccess = IERC20(collateral).transfer(
+            collateral.safeTransfer(
                 msg.sender,
                 totalRewards
             );
-
-            if (!transferSuccess) revert();
         }
 
         emit Liquidate(_user, userDebt, totalRewards, msg.sender);
@@ -957,7 +952,7 @@ contract Vault is
         require(!isUserBlacklisted[_address], "BL");
     }
 
-    function isTxActive() internal view {
+    function isTxPaused() internal view {
         require(TxPaused == false, "TP");
     }
 
