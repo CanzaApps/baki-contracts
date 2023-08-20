@@ -805,6 +805,14 @@ contract Vault is
 
             zUSDMintAmount = zUSDMintAmount / zTokenUSDRate;
 
+             /**
+             * Track the USD value of the swap amount
+             */
+            swapAmountInUSD = _amount * MULTIPLIER;
+            swapAmountInUSD = _amount / _zTokenFromUSDRate;
+
+            totalSwapVolume += swapAmountInUSD;
+
             _burn(_zTokenAddress, msg.sender, _amount);
 
             _mint(zUSD, msg.sender, zUSDMintAmount);
