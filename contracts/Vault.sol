@@ -159,9 +159,7 @@ contract Vault is
 
     event ChangeSwapFee(uint256 a, uint256 b);
 
-    event ChangeGlobalMintersFee(uint256 a, uint256 b);
-
-    event ChangeTreasuryFee(uint256 a, uint256 b);
+    event FeeSetting(uint256 a, uint256 b, uint256 x, uint256 y);
 
     event SetOracleAddress(address _address);
 
@@ -706,24 +704,16 @@ contract Vault is
         emit ChangeSwapFee(a, b);
     }
 
-    function changeGlobalMintersFee(uint256 a, uint256 b) external onlyOwner {
+   
+    function feeSetting(uint256 a, uint256 b, uint256 x, uint256 y) external onlyOwner {
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(a, b);
+        treasuryPercentOfSwapFee = WadRayMath.wadDiv(x, y);
 
-        uint256 x = globalMintersPercentOfSwapFee + treasuryPercentOfSwapFee;
+        uint256 sum = globalMintersPercentOfSwapFee + treasuryPercentOfSwapFee;
 
-        require(x == MULTIPLIER, "IGMF");
+        require(sum == MULTIPLIER, "IFS");
 
-        emit ChangeGlobalMintersFee(a, b);
-    }
-
-    function changeTreasuryFee(uint256 a, uint256 b) external onlyOwner {
-        treasuryPercentOfSwapFee = WadRayMath.wadDiv(a, b);
-
-        uint256 x = globalMintersPercentOfSwapFee + treasuryPercentOfSwapFee;
-
-        require(x == MULTIPLIER, "ITF");
-
-        emit ChangeTreasuryFee(a, b);
+        emit FeeSetting(a, b, x, y);
     }
 
     /**
