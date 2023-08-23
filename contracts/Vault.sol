@@ -270,10 +270,10 @@ contract Vault is
         mintAmount = swapAmount - swapFeePerTransaction;
 
         /**
-         * Track the USD value of the swap amount
-         */
-        swapAmountInUSD = _amount * HALF_MULTIPLIER;
-        swapAmountInUSD = _amount / _zTokenFromUSDRate;
+        * Track the USD value of the swap amount
+        */
+        uint256 x = _amount * HALF_MULTIPLIER;
+        swapAmountInUSD = x / _zTokenFromUSDRate;
 
         totalSwapVolume += swapAmountInUSD;
 
@@ -808,11 +808,11 @@ contract Vault is
 
             zUSDMintAmount = zUSDMintAmount / zTokenUSDRate;
 
-             /**
-             * Track the USD value of the swap amount
-             */
-            swapAmountInUSD = _amount * HALF_MULTIPLIER;
-            swapAmountInUSD = _amount / _zTokenFromUSDRate;
+            /**
+            * Track the USD value of the swap amount
+            */
+            uint256 x = _amount * HALF_MULTIPLIER;
+            swapAmountInUSD = x / zTokenUSDRate;
 
             totalSwapVolume += swapAmountInUSD;
 
