@@ -426,8 +426,8 @@ contract Vault is
         uint256 amount;
 
         amount = userAccruedFeeBalance[msg.sender];
-        userAccruedFeeBalance[msg.sender] = 0;
         globalMintersFee -= userAccruedFeeBalance[msg.sender];
+        userAccruedFeeBalance[msg.sender] = 0;
 
         bool transferSuccess = IERC20(zUSD).transfer(msg.sender, amount);
         if (!transferSuccess) revert();
