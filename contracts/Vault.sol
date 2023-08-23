@@ -429,6 +429,7 @@ contract Vault is
 
         amount = userAccruedFeeBalance[msg.sender];
         userAccruedFeeBalance[msg.sender] = 0;
+        globalMintersFee -= userAccruedFeeBalance[msg.sender];
 
         bool transferSuccess = IERC20(zUSD).transfer(msg.sender, amount);
         if (!transferSuccess) revert();
@@ -880,14 +881,14 @@ contract Vault is
     /**
     * Get address of zUSD token
     */
-    function getzUSDAddress() external returns(address) {
+    function getzUSDAddress() external onlyOwner returns(address) {
         return zUSD = BakiOracleInterface(Oracle).getZToken("zusd");
     }
 
      /**
     * View minter's reward Helper
     */
-    function getSwapReward() internal returns(uint256) {
+    function getSwapReward() public returns(uint256) {
         uint256 x = netMintUser[msg.sender] * globalMintersFee;
 
         uint256 mintRatio = WadRayMath.wadDiv(

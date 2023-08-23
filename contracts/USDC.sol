@@ -46,10 +46,6 @@ contract USDC is Context, USDCInterface, IERC20, Ownable, IERC20Metadata {
     //   require(msg.sender == vault);
     //   _;
     // }
-
-    /**
-     * @dev these can only be called by the Vault contract
-     */
     function mint(address _userAddress, uint256 _amount)
         public
         override
