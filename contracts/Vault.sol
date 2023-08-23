@@ -668,7 +668,7 @@ contract Vault is
      * Pause transactions
      */
     function pause() external onlyOwner {
-       require(TxPaused = false, "TxP true");
+       require(TxPaused == false, "TxP true");
 
        TxPaused = true;
 
@@ -679,7 +679,7 @@ contract Vault is
      * Pause transactions
      */
     function unPause() external onlyOwner {
-        require(TxPaused = true, "TxP false");
+        require(TxPaused == true, "TxP false");
 
         TxPaused = false;
 
