@@ -6,7 +6,7 @@
  * Check if the substracting value is greater than or less than the added values i.e check for a negative result
  */
 
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";

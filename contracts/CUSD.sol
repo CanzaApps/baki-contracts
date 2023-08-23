@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity 0.8.19;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -30,14 +30,6 @@ contract CUSD is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
         _mint(msg.sender, 1000 * 10**18 );
     }
 
-    /**
-     * Implement an onlyVault address
-     */
-    //  OnlyVault modifier
-    // modifier onlyVault {
-    //   require(msg.sender == vault);
-    //   _;
-    // }
     event Mint(
         address indexed _userAddress, 
         uint256 _amount
