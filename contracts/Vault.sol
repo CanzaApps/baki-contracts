@@ -877,6 +877,10 @@ contract Vault is
     * View minter's reward Helper
     */
     function getSwapReward() public returns(uint256) {
+
+         if (netMintUser[msg.sender] == 0) {
+            return 0;
+        }
         uint256 x = netMintUser[msg.sender] * globalMintersFee;
 
         uint256 mintRatio = WadRayMath.wadDiv(
