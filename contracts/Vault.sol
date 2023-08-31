@@ -6,9 +6,10 @@
  * Check if the substracting value is greater than or less than the added values i.e check for a negative result
  */
 
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.18;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -25,8 +26,9 @@ contract Vault is
     ReentrancyGuardUpgradeable,
     OwnableUpgradeable
 {
-   
-    address public collateral;
+    using SafeERC20Upgradeable for IERC20Upgradeable;
+    
+    IERC20Upgradeable public collateral;
 
     address private Oracle;
 
@@ -79,8 +81,6 @@ contract Vault is
 
     address[] public _blacklistedAddresses;
 
-    bool public transactionsPaused;
-
     address[] public usersInLiquidationZone;
 
     uint256 public totalCollateral;
@@ -93,17 +93,21 @@ contract Vault is
 
     bool public TxPaused;
 
+    mapping(address => bool) public isMinter;
+
     /**
      * Initializers
      */
 
      function vault_init(
         address _oracle,
-        address _collateral
-    ) external reinitializer(1) {
+        IERC20Upgradeable _collateral,
+        address _zusd
+    ) external initializer {
         TxPaused = false;
         Oracle = _oracle;
         collateral = _collateral;
+        zUSD = _zusd;
         COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
         LIQUIDATION_REWARD = 15;
         treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
@@ -112,6 +116,7 @@ contract Vault is
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
 
         __Ownable_init();
+        __ReentrancyGuard_init();
     }
 
     /**
@@ -154,9 +159,7 @@ contract Vault is
 
     event ChangeSwapFee(uint256 a, uint256 b);
 
-    event ChangeGlobalMintersFee(uint256 a, uint256 b);
-
-    event ChangeTreasuryFee(uint256 a, uint256 b);
+    event FeeSetting(uint256 a, uint256 b, uint256 x, uint256 y);
 
     event SetOracleAddress(address _address);
 
@@ -172,19 +175,16 @@ contract Vault is
         isTxPaused();
         
         require(
-            IERC20(collateral).balanceOf(msg.sender) >=
+            collateral.balanceOf(msg.sender) >=
                 _depositAmount,
             "IB"
         );
 
-        // transfer cUSD tokens from user wallet to vault contract
-        bool transferSuccess = IERC20(collateral).transferFrom(
+        collateral.safeTransferFrom(
             msg.sender,
             address(this),
             _depositAmount
         );
-
-        if (!transferSuccess) revert();
 
         userCollateralBalance[msg.sender] += _depositAmount;
 
@@ -208,20 +208,13 @@ contract Vault is
 
         netMintUser[msg.sender] += netMintChange;
         netMintGlobal += netMintChange;
-          /**
+        
+        /**
          * if this is user's first mint, add to minters list
          */
-        bool addressExists = false;
-
-        for (uint i = 0; i < mintersAddresses.length; i++) {
-        if (mintersAddresses[i] == msg.sender) {
-            addressExists = true;
-            break;
-        }
-        }
-
-        if (!addressExists && grossMintUser[msg.sender] > 0) {
+        if (!isMinter[msg.sender] && grossMintUser[msg.sender] > 0) {
             mintersAddresses.push(msg.sender);
+            isMinter[msg.sender] = true;
         }
 
         _testImpact();
@@ -246,7 +239,7 @@ contract Vault is
         address _zTokenToAddress = BakiOracleInterface(Oracle).getZToken(_zTokenTo);
 
         require(
-            IERC20(_zTokenFromAddress).balanceOf(msg.sender) >= _amount,
+            IERC20Upgradeable(_zTokenFromAddress).balanceOf(msg.sender) >= _amount,
             "IB"
         );
         uint256 _zTokenFromUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenFrom);
@@ -273,10 +266,10 @@ contract Vault is
         mintAmount = swapAmount - swapFeePerTransaction;
 
         /**
-         * Track the USD value of the swap amount
-         */
-        swapAmountInUSD = _amount * MULTIPLIER;
-        swapAmountInUSD = _amount / _zTokenFromUSDRate;
+        * Track the USD value of the swap amount
+        */
+        uint256 x = _amount * HALF_MULTIPLIER;
+        swapAmountInUSD = x / _zTokenFromUSDRate;
 
         totalSwapVolume += swapAmountInUSD;
 
@@ -297,6 +290,8 @@ contract Vault is
 
         globalMintersFee += globalMintersFeePerTransaction;
 
+        getSwapReward();
+
         treasuryFeePerTransaction =
             treasuryPercentOfSwapFee *
             swapFeePerTransactionInUsd;
@@ -313,16 +308,6 @@ contract Vault is
          */
         _mint(zUSD, address(this), globalMintersFeePerTransaction);
 
-        for (uint256 i = 0; i < mintersAddresses.length; i++) {
-            mintersRewardPerTransaction[mintersAddresses[i]] =
-                ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
-                    netMintGlobal) *
-                globalMintersFeePerTransaction;
-
-            userAccruedFeeBalance[mintersAddresses[i]] +=
-                mintersRewardPerTransaction[mintersAddresses[i]] /
-                MULTIPLIER;
-        }
         emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
     }
 
@@ -335,7 +320,7 @@ contract Vault is
         string calldata _zToken
     ) external nonReentrant {
         blockBlacklistedAddresses(msg.sender);
-       isTxPaused();
+        isTxPaused();
 
         uint256 amountToRepayinUSD = _repay(_amountToRepay, _zToken);
 
@@ -369,12 +354,10 @@ contract Vault is
 
         userCollateralBalance[msg.sender] -= _amountToWithdraw;
 
-        bool transferSuccess = IERC20(collateral).transfer(
+        collateral.safeTransfer(
             msg.sender,
             _amountToWithdraw
         );
-
-        if (!transferSuccess) revert();
 
         _testImpact();
 
@@ -401,7 +384,7 @@ contract Vault is
         );
 
         require(
-            IERC20(zUSD).balanceOf(msg.sender) >= userDebt,
+            IERC20Upgradeable(zUSD).balanceOf(msg.sender) >= userDebt,
             "!LzUSD"
         );
 
@@ -413,21 +396,18 @@ contract Vault is
         if (userCollateralBalance[_user] <= totalRewards) {
             userCollateralBalance[_user] = 0;
 
-            bool transferSuccess = IERC20(collateral).transfer(
+            collateral.safeTransfer(
                 msg.sender,
                 totalRewards
             );
 
-            if (!transferSuccess) revert();
         } else {
             userCollateralBalance[_user] -= totalRewards;
 
-            bool transferSuccess = IERC20(collateral).transfer(
+            collateral.safeTransfer(
                 msg.sender,
                 totalRewards
             );
-
-            if (!transferSuccess) revert();
         }
 
         emit Liquidate(_user, userDebt, totalRewards, msg.sender);
@@ -444,9 +424,10 @@ contract Vault is
         uint256 amount;
 
         amount = userAccruedFeeBalance[msg.sender];
+        globalMintersFee -= userAccruedFeeBalance[msg.sender];
         userAccruedFeeBalance[msg.sender] = 0;
 
-        bool transferSuccess = IERC20(zUSD).transfer(msg.sender, amount);
+        bool transferSuccess = IERC20Upgradeable(zUSD).transfer(msg.sender, amount);
         if (!transferSuccess) revert();
     }
 
@@ -546,7 +527,7 @@ contract Vault is
     /**
      * Helper function to remove a user from the liquidation list
      */
-    function _removeUserFromLiquidationList(address _user) internal onlyOwner {
+    function _removeUserFromLiquidationList(address _user) internal {
         bool isUserAlreadyInLiquidationArray = _checkIfUserAlreadyExistsInLiquidationList(
                 _user
             );
@@ -608,7 +589,7 @@ contract Vault is
      * Get user balance
      */
     function getBalance(address _token) external view returns (uint256) {
-        return IERC20(_token).balanceOf(msg.sender);
+        return IERC20Upgradeable(_token).balanceOf(msg.sender);
     }
 
     /**
@@ -639,7 +620,7 @@ contract Vault is
      */
       function setCollaterizationRatioThreshold(
         uint256 _value
-    ) external {
+    ) external onlyOwner {
         // Set an upper and lower bound on the new value of collaterization ratio threshold
         require(
             _value > 12 * 1e2 || _value < 20 * 1e2,
@@ -663,7 +644,7 @@ contract Vault is
     /**
      * Check for blacklisted address
      */
-       function blacklistAddress(address _address) external {
+       function blacklistAddress(address _address) external onlyOwner {
 
         require(!isUserBlacklisted[_address],"BA");
 
@@ -675,7 +656,7 @@ contract Vault is
     /**
      * Remove from blacklist
      */
-    function removeAddressFromBlacklist(address _address) external {
+    function removeAddressFromBlacklist(address _address) external onlyOwner {
 
         require(isUserBlacklisted[_address], "!BA");
 
@@ -686,8 +667,8 @@ contract Vault is
     /**
      * Pause transactions
      */
-    function pause() external {
-       require(TxPaused = false, "TxP true");
+    function pause() external onlyOwner {
+       require(TxPaused == false, "TxP true");
 
        TxPaused = true;
 
@@ -697,8 +678,8 @@ contract Vault is
        /**
      * Pause transactions
      */
-    function unPause() external {
-        require(TxPaused = true, "TxP false");
+    function unPause() external onlyOwner {
+        require(TxPaused == true, "TxP false");
 
         TxPaused = false;
 
@@ -707,7 +688,7 @@ contract Vault is
     /**
      * Change swap variables
      */
-    function addTreasuryWallet(address _address) external {
+    function addTreasuryWallet(address _address) external onlyOwner{
         require(_address != address(0), "ZA");
 
         treasuryWallet = _address;
@@ -718,26 +699,28 @@ contract Vault is
     function changeSwapFee(uint256 a, uint256 b) external onlyOwner {
         swapFee = WadRayMath.wadDiv(a, b);
 
+        require(swapFee <= MULTIPLIER, "IsF");
+
         emit ChangeSwapFee(a, b);
     }
 
-    function changeGlobalMintersFee(uint256 a, uint256 b) external onlyOwner {
+   
+    function feeSetting(uint256 a, uint256 b, uint256 x, uint256 y) external onlyOwner {
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(a, b);
+        treasuryPercentOfSwapFee = WadRayMath.wadDiv(x, y);
 
-        emit ChangeGlobalMintersFee(a, b);
-    }
+        uint256 sum = globalMintersPercentOfSwapFee + treasuryPercentOfSwapFee;
 
-    function changeTreasuryFee(uint256 a, uint256 b) external onlyOwner {
-        treasuryPercentOfSwapFee = WadRayMath.wadDiv(a, b);
+        require(sum == MULTIPLIER, "IFS");
 
-        emit ChangeTreasuryFee(a, b);
+        emit FeeSetting(a, b, x, y);
     }
 
     /**
      * Get Total Supply of zTokens
      */
     function getTotalSupply(address _address) external view returns (uint256) {
-        return IERC20(_address).totalSupply();
+        return IERC20Upgradeable(_address).totalSupply();
     }
 
     /**
@@ -813,6 +796,14 @@ contract Vault is
 
             zUSDMintAmount = zUSDMintAmount / zTokenUSDRate;
 
+            /**
+            * Track the USD value of the swap amount
+            */
+            uint256 x = _amount * HALF_MULTIPLIER;
+            swapAmountInUSD = x / zTokenUSDRate;
+
+            totalSwapVolume += swapAmountInUSD;
+
             _burn(_zTokenAddress, msg.sender, _amount);
 
             _mint(zUSD, msg.sender, zUSDMintAmount);
@@ -826,6 +817,8 @@ contract Vault is
                 MULTIPLIER;
 
             globalMintersFee += globalMintersFeePerTransaction;
+
+            getSwapReward();
 
             treasuryFeePerTransaction =
                 treasuryPercentOfSwapFee *
@@ -841,17 +834,6 @@ contract Vault is
              * Send the global minters fee from User to the global minters fee wallet
              */
             _mint(zUSD, address(this), globalMintersFeePerTransaction);
-
-            for (uint256 i = 0; i < mintersAddresses.length; i++) {
-                mintersRewardPerTransaction[mintersAddresses[i]] =
-                    ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
-                        netMintGlobal) *
-                    globalMintersFeePerTransaction;
-
-                userAccruedFeeBalance[mintersAddresses[i]] +=
-                    mintersRewardPerTransaction[mintersAddresses[i]] /
-                    MULTIPLIER;
-            }
         }
 
         return zUSDMintAmount;
@@ -860,7 +842,7 @@ contract Vault is
     /**
      * Set Oracle contract address
      */
-   function setOracleAddress(address _address) public {
+   function setOracleAddress(address _address) external onlyOwner {
         require(_address != address(0), "ZA");
 
         Oracle = _address;
@@ -887,8 +869,28 @@ contract Vault is
     /**
     * Get address of zUSD token
     */
-    function getzUSDAddress() external returns(address) {
+    function getzUSDAddress() external onlyOwner returns(address) {
         return zUSD = BakiOracleInterface(Oracle).getZToken("zusd");
+    }
+
+     /**
+    * View minter's reward Helper
+    */
+    function getSwapReward() public returns(uint256) {
+
+         if (netMintUser[msg.sender] == 0) {
+            return 0;
+        }
+        uint256 x = netMintUser[msg.sender] * globalMintersFee;
+
+        uint256 mintRatio = WadRayMath.wadDiv(
+            x,
+            netMintGlobal
+        );
+
+        userAccruedFeeBalance[msg.sender] = mintRatio / MULTIPLIER;
+
+        return userAccruedFeeBalance[msg.sender];
     }
 
     /**
@@ -897,7 +899,7 @@ contract Vault is
     function getDebtHelper(string memory _zToken) internal view returns(uint256) {
         address _zTokenAddress = BakiOracleInterface(Oracle).getZToken(_zToken);
 
-        uint256 singleZToken = WadRayMath.wadDiv(IERC20(_zTokenAddress).totalSupply(), 
+        uint256 singleZToken = WadRayMath.wadDiv(IERC20Upgradeable(_zTokenAddress).totalSupply(), 
         BakiOracleInterface(Oracle).getZTokenUSDValue(_zToken)
         );
 
@@ -957,7 +959,7 @@ contract Vault is
         require(!isUserBlacklisted[_address], "BL");
     }
 
-    function isTxActive() internal view {
+    function isTxPaused() internal view {
         require(TxPaused == false, "TP");
     }
 
@@ -992,4 +994,6 @@ contract Vault is
 
         return true;
     }
+
+    uint256[50] private __gap;
 }

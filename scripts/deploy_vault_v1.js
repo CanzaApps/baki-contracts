@@ -87,7 +87,7 @@ async function main() {
 
   const vault = await upgrades.deployProxy(
     Vault,
-    [Oracle, collateral],
+    [Oracle, collateral, zUSD],
     {
       initializer: "vault_init",
     }
