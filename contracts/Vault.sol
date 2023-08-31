@@ -8,8 +8,8 @@
 
 pragma solidity ^0.8.18;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -26,9 +26,9 @@ contract Vault is
     ReentrancyGuardUpgradeable,
     OwnableUpgradeable
 {
-    using SafeERC20 for IERC20;
+    using SafeERC20Upgradeable for IERC20Upgradeable;
     
-    IERC20 public collateral;
+    IERC20Upgradeable public collateral;
 
     address private Oracle;
 
@@ -101,7 +101,7 @@ contract Vault is
 
      function vault_init(
         address _oracle,
-        IERC20 _collateral,
+        IERC20Upgradeable _collateral,
         address _zusd
     ) external initializer {
         TxPaused = false;
@@ -239,7 +239,7 @@ contract Vault is
         address _zTokenToAddress = BakiOracleInterface(Oracle).getZToken(_zTokenTo);
 
         require(
-            IERC20(_zTokenFromAddress).balanceOf(msg.sender) >= _amount,
+            IERC20Upgradeable(_zTokenFromAddress).balanceOf(msg.sender) >= _amount,
             "IB"
         );
         uint256 _zTokenFromUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenFrom);
@@ -384,7 +384,7 @@ contract Vault is
         );
 
         require(
-            IERC20(zUSD).balanceOf(msg.sender) >= userDebt,
+            IERC20Upgradeable(zUSD).balanceOf(msg.sender) >= userDebt,
             "!LzUSD"
         );
 
@@ -427,7 +427,7 @@ contract Vault is
         globalMintersFee -= userAccruedFeeBalance[msg.sender];
         userAccruedFeeBalance[msg.sender] = 0;
 
-        bool transferSuccess = IERC20(zUSD).transfer(msg.sender, amount);
+        bool transferSuccess = IERC20Upgradeable(zUSD).transfer(msg.sender, amount);
         if (!transferSuccess) revert();
     }
 
@@ -589,7 +589,7 @@ contract Vault is
      * Get user balance
      */
     function getBalance(address _token) external view returns (uint256) {
-        return IERC20(_token).balanceOf(msg.sender);
+        return IERC20Upgradeable(_token).balanceOf(msg.sender);
     }
 
     /**
@@ -720,7 +720,7 @@ contract Vault is
      * Get Total Supply of zTokens
      */
     function getTotalSupply(address _address) external view returns (uint256) {
-        return IERC20(_address).totalSupply();
+        return IERC20Upgradeable(_address).totalSupply();
     }
 
     /**
@@ -899,7 +899,7 @@ contract Vault is
     function getDebtHelper(string memory _zToken) internal view returns(uint256) {
         address _zTokenAddress = BakiOracleInterface(Oracle).getZToken(_zToken);
 
-        uint256 singleZToken = WadRayMath.wadDiv(IERC20(_zTokenAddress).totalSupply(), 
+        uint256 singleZToken = WadRayMath.wadDiv(IERC20Upgradeable(_zTokenAddress).totalSupply(), 
         BakiOracleInterface(Oracle).getZTokenUSDValue(_zToken)
         );
 
