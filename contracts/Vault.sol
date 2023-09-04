@@ -11,6 +11,7 @@ pragma solidity ^0.8.18;
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./interfaces/ZTokenInterface.sol";
@@ -24,7 +25,8 @@ error ImpactFailed();
 
 contract Vault is
     ReentrancyGuardUpgradeable,
-    OwnableUpgradeable
+    OwnableUpgradeable,
+    AccessControlUpgradeable
 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     
@@ -95,11 +97,16 @@ contract Vault is
 
     mapping(address => bool) public isMinter;
 
+    bytes32 public constant CONTROLLER = keccak256("CONTROLLER");
+
+    mapping(address => uint256) public GlobalMintersFeeAtClaim;
+
     /**
      * Initializers
      */
 
      function vault_init(
+        address _controller,
         address _oracle,
         IERC20Upgradeable _collateral,
         address _zusd
@@ -114,6 +121,7 @@ contract Vault is
         swapFee = WadRayMath.wadDiv(8, 1000);
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
+        _setupRole(CONTROLLER, _controller);
 
         __Ownable_init();
         __ReentrancyGuard_init();
@@ -177,7 +185,7 @@ contract Vault is
         require(
             collateral.balanceOf(msg.sender) >=
                 _depositAmount,
-            "IB"
+            "Insufficient Balance"
         );
 
         collateral.safeTransferFrom(
@@ -240,7 +248,7 @@ contract Vault is
 
         require(
             IERC20Upgradeable(_zTokenFromAddress).balanceOf(msg.sender) >= _amount,
-            "IB"
+            "Insufficient Balance"
         );
         uint256 _zTokenFromUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenFrom);
         uint256 _zTokenToUSDRate = BakiOracleInterface(Oracle).getZTokenUSDValue(_zTokenTo);
@@ -290,8 +298,6 @@ contract Vault is
 
         globalMintersFee += globalMintersFeePerTransaction;
 
-        getSwapReward();
-
         treasuryFeePerTransaction =
             treasuryPercentOfSwapFee *
             swapFeePerTransactionInUsd;
@@ -333,12 +339,12 @@ contract Vault is
 
         require(
             userCollateralBalance[msg.sender] >= _amountToWithdraw,
-            "IC"
+            "Insufficient Collateral"
         );
 
         require(
             userDebt >= amountToRepayinUSD,
-            "A>D"
+            "Repay>Debt"
         );
 
         if (userDebt != 0) {
@@ -417,15 +423,15 @@ contract Vault is
      * Allow minters to claim rewards/fees on swap
      */
     function claimFees() external nonReentrant {
-        require(
-            userAccruedFeeBalance[msg.sender] > 0,
-            "!UR"
-        );
-        uint256 amount;
+        uint256 amount = getSwapReward(msg.sender);
 
-        amount = userAccruedFeeBalance[msg.sender];
-        globalMintersFee -= userAccruedFeeBalance[msg.sender];
-        userAccruedFeeBalance[msg.sender] = 0;
+        require(
+            amount > 0,
+            "No reward"
+        );
+        
+        userAccruedFeeBalance[msg.sender] += amount;
+        GlobalMintersFeeAtClaim[msg.sender] = globalMintersFee;
 
         bool transferSuccess = IERC20Upgradeable(zUSD).transfer(msg.sender, amount);
         if (!transferSuccess) revert();
@@ -448,9 +454,9 @@ contract Vault is
 
         require(
             isUserInLiquidationZone == true,
-            "!LZ"
+            "Not in liquidation Zone"
         );
-        require(_userDebt > 0, "!UD");
+        require(_userDebt > 0, "Insufficient Debt");
 
         uint256 rewardFee = (_userDebt * LIQUIDATION_REWARD) / 100;
 
@@ -472,9 +478,10 @@ contract Vault is
      */
     function manageUsersInLiquidationZone()
         external
-        onlyOwner
         returns (address[] memory)
     {
+        require(hasRole(CONTROLLER, msg.sender), " Not controller");
+
         for (uint256 i = 0; i < mintersAddresses.length; i++) {
             bool isUserInLiquidationZone = checkUserForLiquidation(
                 mintersAddresses[i]
@@ -818,8 +825,6 @@ contract Vault is
 
             globalMintersFee += globalMintersFeePerTransaction;
 
-            getSwapReward();
-
             treasuryFeePerTransaction =
                 treasuryPercentOfSwapFee *
                 swapFeePerTransactionInUsd;
@@ -876,21 +881,27 @@ contract Vault is
      /**
     * View minter's reward Helper
     */
-    function getSwapReward() public returns(uint256) {
+    function getSwapReward(address _user) public view returns(uint256) {
 
-         if (netMintUser[msg.sender] == 0) {
+        if (netMintUser[msg.sender] == 0) {
             return 0;
         }
-        uint256 x = netMintUser[msg.sender] * globalMintersFee;
+        uint256 amount;
+        uint256 y = globalMintersFee - GlobalMintersFeeAtClaim[_user];
+
+        if (y == 0) {
+            return 0;
+        }
+        uint256 x = netMintUser[msg.sender] * y;
 
         uint256 mintRatio = WadRayMath.wadDiv(
             x,
             netMintGlobal
         );
 
-        userAccruedFeeBalance[msg.sender] = mintRatio / MULTIPLIER;
+        amount = mintRatio / MULTIPLIER;
 
-        return userAccruedFeeBalance[msg.sender];
+        return amount;
     }
 
     /**
@@ -988,7 +999,7 @@ contract Vault is
 
             require(
                 USDValueOfCollateral >= collateralRatioMultipliedByDebt,
-                "IC"
+                "Insufficent Collateral"
             );
         }
 

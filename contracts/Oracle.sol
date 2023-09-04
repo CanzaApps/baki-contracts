@@ -2,9 +2,12 @@
 pragma solidity ^0.8.18;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./interfaces/BakiOracleInterface.sol";
 
-contract BakiOracle is Ownable, BakiOracleInterface {
+contract BakiOracle is Ownable, AccessControl, BakiOracleInterface {
+
+    bytes32 public constant DATA_FEED = keccak256("DATA_FEED");
 
     mapping(string => address) private zTokenAddress;
     mapping(address => uint256) private zTokenUSDValue;
@@ -12,6 +15,23 @@ contract BakiOracle is Ownable, BakiOracleInterface {
     
     string[] public zTokenList;
     uint256 public collateralUSD;
+
+    constructor (address _datafeed, address _zusd, address _zngn, address _zzar, address _zxaf) {
+        string[4] memory default_currencies = ["zusd", "zngn", "zzar", "zxaf"];
+        _setupRole(DATA_FEED, _datafeed);
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+
+        zTokenAddress["zusd"] = _zusd;
+        zTokenExists["zusd"] = true;
+        zTokenAddress["zngn"] = _zngn;
+        zTokenExists["zngn"] = true;
+        zTokenAddress["zzar"] = _zzar;
+        zTokenExists["zzar"] = true;
+        zTokenAddress["zxaf"] = _zxaf;
+        zTokenExists["zxaf"] = true;
+
+        zTokenList = default_currencies;
+    }
 
     event AddZToken(string indexed _name, address _address);
     event RemoveZToken(string indexed _name);
@@ -81,9 +101,10 @@ contract BakiOracle is Ownable, BakiOracleInterface {
     function setZTokenUSDValue(
         string calldata _name,
         uint256 _value
-    ) external onlyOwner {
+    ) external {
         address zToken = getZToken(_name);
 
+        require(hasRole(DATA_FEED, msg.sender), "Caller is not data_feed");
         require(zToken != address(0), "zToken does not exist");
         require(_value >= 1, "Invalid value");
 
@@ -102,7 +123,9 @@ contract BakiOracle is Ownable, BakiOracleInterface {
         return zTokenUSDValue[zToken];
     }
 
-    function setZCollateralUSD(uint256 _value) external onlyOwner {
+    function setZCollateralUSD(uint256 _value) external {
+        require(hasRole(DATA_FEED, msg.sender), "Caller is not data_feed");
+
         if (_value > 1000) {
             collateralUSD = 1000;
         } else {
