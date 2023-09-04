@@ -20,7 +20,7 @@ module.exports = {
     goerli: {
       url: `https://eth-goerli.g.alchemy.com/v2/MIaPbNNNaHPp9qf5cDCOEJPVxJ_GwLVY`,
       accounts: [
-        process.env.TESTNET_PRIVATE_KEYPRIVATE_KEY,
+        process.env.TESTNET_PRIVATE_KEY,
       ],
     },
     fuji: {
