@@ -122,6 +122,7 @@ contract Vault is
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
         _setupRole(CONTROLLER, _controller);
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         __Ownable_init();
         __ReentrancyGuard_init();

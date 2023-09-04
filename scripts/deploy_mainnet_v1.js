@@ -1,7 +1,7 @@
 const { ethers, upgrades } = require("hardhat");
 
-const datafeed = process.env.DATAFEED;
-const Controller = process.env.CONTROLLER;
+const datafeed = process.env.MAINNET_DATAFEED;
+const Controller = process.env.MAINNET_CONTROLLER;
 
 let tokens = {
   zUSD: null,

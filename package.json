@@ -3,7 +3,8 @@
   "scripts": {
     "deploy": "hardhat run --network fuji scripts/deploy_vault_v1.js ",
     "upgrade": "hardhat run --network fuji scripts/upgrade_vault.js ",
-    "deploy-mainnet": "hardhat run --network mainnet scripts/deploy_mainnet_v1.js"
+    "deploy-mainnet": "hardhat run --network mainnet scripts/deploy_mainnet_v1.js",
+    "upgrade-mainnet": "hardhat run --network mainnet scripts/upgrade_vault_mainnet.js "
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.1",
