@@ -1,13 +1,12 @@
 const { ethers, upgrades } = require("hardhat");
+const { getImplementationAddress } = require('@openzeppelin/upgrades-core');
 
 let tokens = {
-  zUSD: null,
-  zNGN: null,
-  zZAR: null,
-  zZAF: null,
+  zusd: null,
+  zngn: null,
+  zzar: null,
+  zxaf: null,
 };
-
-let Oracle;
 
 async function deployToken(_name, _symbol) {
   const ZToken = await ethers.getContractFactory("ZToken");
@@ -18,11 +17,6 @@ async function deployToken(_name, _symbol) {
   await ztoken.deployed();
   tokens[_name] = ztoken.address;
   console.log(`${_name} token is deployed at ${ztoken.address}`);
-
-  // const oracleInstance = await hre.ethers.getContractAt(Oracle);
-
-  // await oracleInstance.addZToken(_name, ztoken.address);
-
   return ztoken.address;
 }
 
@@ -50,12 +44,14 @@ async function deployCollateral() {
   return usdc.address;
 }
 
-async function setVaultAddress(_name, _vaultAddress) {
+async function setVaultAddress(_name, _vaultAddress, liqAddr) {
   const zToken = await hre.ethers.getContractAt("ZToken", tokens[_name]);
 
   const txn = await zToken.addVaultAddress(_vaultAddress);
+  const txn1 = await zToken.addLiquidationAddress(liqAddr);
 
   console.log(`Set Vault address on ${_name}:`, txn.hash);
+  //console.log(`Set Liq address on ${_name}:`, txn1.hash);
 }
 
 async function deployCollateral() {
@@ -70,26 +66,44 @@ async function deployCollateral() {
   return usdc.address;
 }
 
+async function deployLiquidation(_vaultAddress) {
+    try{
+    console.log("vault", _vaultAddress)
+  const Liquidation = await ethers.getContractFactory("Liquidation");
+  //console.log("liq", Liquidation)
+  const liquidation = await upgrades.deployProxy(Liquidation, [_vaultAddress], {
+    initializer: "init",
+  })
+  await liquidation.deployed();
+  console.log("Liquidation deployed to: ", liquidation.address)
+  return liquidation.address;
+    }catch(err) {
+        console.log(err)
+    }
+}
+
 async function main() {
   const Vault = await ethers.getContractFactory("Vault");
+  // const proxyAddress = '0x48c35B4458237975aA572b4480cC93FE7535a2AC'; // replace with your proxy contract address
+
+  // const provider = ethers.provider;
+  // const implementationAddress = await getImplementationAddress(provider, proxyAddress);
+
+  // console.log('Implementation contract address:', implementationAddress);
+
+  //deploy ztokens and oracle contracts
+  const zUSD = await deployToken("zusd", "zusd");
+  const zNGN = await deployToken("zngn", "zngn");
+  const zZAR = await deployToken("zzar", "zzar");
+  const zXAF = await deployToken("zxaf", "zxaf");
+
+  const collateral = await deployCollateral();
 
   const Oracle = await deployOracle();
 
-  console.log(Oracle);
-
-  // deploy ztokens contracts
-  const zUSD = await deployToken("zUSD", "zUSD");
-  const zNGN = await deployToken("zNGN", "zNGN");
-  const zZAR = await deployToken("zZAR", "zZAR");
-  const zXAF = await deployToken("zXAF", "zXAF");
-
-  const collateral = await deployCollateral();
- console.log("oracle", Oracle)
- console.log("collateral", collateral);
- console.log("zusd", )
   const vault = await upgrades.deployProxy(
     Vault,
-    [Oracle, collateral, zUSD],
+    [Oracle, collateral],
     {
       initializer: "vault_init",
     }
@@ -98,14 +112,13 @@ async function main() {
   await vault.deployed();
   console.log("Vault deployed to:", vault.address);
 
-  // const vaultInstance = await hre.ethers.getContractAt(vault.address);
+  // const liqAddr = await deployLiquidation(vault.address);
+  // console.log("here", liqAddr)
 
-  // await vaultInstance.getzUSDAddress;
-
-  await setVaultAddress("zUSD", vault.address);
-  await setVaultAddress("zNGN", vault.address);
-  await setVaultAddress("zZAR", vault.address);
-  await setVaultAddress("zXAF", vault.address);
+    await setVaultAddress("zusd", vault.address, liqAddr);
+    await setVaultAddress("zngn", vault.address, liqAddr);
+    await setVaultAddress("zzar", vault.address, liqAddr);
+    await setVaultAddress("zxaf", vault.address, liqAddr);
 }
 
 main();

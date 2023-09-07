@@ -23,7 +23,7 @@ module.exports = {
     fuji: {
       url: `https://omniscient-restless-thunder.avalanche-testnet.discover.quiknode.pro/933a2d24cf1a762fd73a569be25bdec21cb60a9f/ext/bc/C/rpc`,
       accounts: [
-        `e92c8c5583d609db38379f0ecfec8206eb1c8da47103f60f83812fafb59097fe`,
+        `4cacfec187b1b89b13e888784697c86de3cdb2c79b318777e92ebcfea52bef43`,
       ],
       chainId: 43113,
     },
