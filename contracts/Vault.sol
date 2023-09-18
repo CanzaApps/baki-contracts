@@ -732,11 +732,13 @@ contract Vault is
      * view minters addresses
      */
     function viewMintersAddress(uint256 start, uint256 pageSize) external view   returns (address[] memory) {
-        require(start < mintersAddresses.length, "out of range");
+        uint len = mintersAddresses.length;
+
+        require(start < len, "out of range");
 
         uint256 end = start + pageSize;
-        if (end > mintersAddresses.length) {
-            end = mintersAddresses.length;
+        if (end > len) {
+            end = len;
         }
 
         address[] memory result = new address[](end - start);
