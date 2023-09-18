@@ -20,17 +20,20 @@ async function deployToken(_name, _symbol) {
   return ztoken.address;
 }
 
-async function deployOracle() {
-  const Oracle = await ethers.getContractFactory("BakiOracle");
+
+
+async function deployOracle(_datafeed, _zusd, _zngn, _zzar ,_zxaf) {
+  const Oracle = await ethers.getContractFactory("ChainlinkOracle");
   console.log("deploying oracle");
 
-  const oracle = await Oracle.deploy();
+  const oracle = await Oracle.deploy(_datafeed, _zusd, _zngn, _zzar ,_zxaf);
 
   await oracle.deployed();
 
   console.log(`oracle is deployed is ${oracle.address}`);
   return oracle.address;
 }
+
 
 async function deployCollateral() {
   const Cusd = await ethers.getContractFactory("USDC");
@@ -83,7 +86,7 @@ async function deployLiquidation(_vaultAddress) {
 }
 
 async function main() {
-  const Vault = await ethers.getContractFactory("Vault");
+  //const Vault = await ethers.getContractFactory("Vault");
   // const proxyAddress = '0x48c35B4458237975aA572b4480cC93FE7535a2AC'; // replace with your proxy contract address
 
   // const provider = ethers.provider;
@@ -92,33 +95,35 @@ async function main() {
   // console.log('Implementation contract address:', implementationAddress);
 
   //deploy ztokens and oracle contracts
-  const zUSD = await deployToken("zusd", "zusd");
-  const zNGN = await deployToken("zngn", "zngn");
-  const zZAR = await deployToken("zzar", "zzar");
-  const zXAF = await deployToken("zxaf", "zxaf");
+  // const zUSD = await deployToken("zusd", "zusd");
+  // const zNGN = await deployToken("zngn", "zngn");
+  // const zZAR = await deployToken("zzar", "zzar");
+  // const zXAF = await deployToken("zxaf", "zxaf");
 
-  const collateral = await deployCollateral();
+  // const collateral = await deployCollateral();
 
-  const Oracle = await deployOracle();
+  const Oracle = await deployOracle("0x4281ecf07378ee595c564a59048801330f3084ee", "0x4281ecf07378ee595c564a59048801330f3084ee", "0x4281ecf07378ee595c564a59048801330f3084ee", "0x4281ecf07378ee595c564a59048801330f3084ee", "0x4281ecf07378ee595c564a59048801330f3084ee");
 
-  const vault = await upgrades.deployProxy(
-    Vault,
-    [Oracle, collateral],
-    {
-      initializer: "vault_init",
-    }
-  );
+  console.log(Oracle);
 
-  await vault.deployed();
-  console.log("Vault deployed to:", vault.address);
+  // const vault = await upgrades.deployProxy(
+  //   Vault,
+  //   [Oracle, collateral],
+  //   {
+  //     initializer: "vault_init",
+  //   }
+  // );
+
+  //await Oracle.deployed();
+  //console.log("Vault deployed to:", vault.address);
 
   // const liqAddr = await deployLiquidation(vault.address);
   // console.log("here", liqAddr)
 
-    await setVaultAddress("zusd", vault.address, liqAddr);
-    await setVaultAddress("zngn", vault.address, liqAddr);
-    await setVaultAddress("zzar", vault.address, liqAddr);
-    await setVaultAddress("zxaf", vault.address, liqAddr);
+    // await setVaultAddress("zusd", vault.address, liqAddr);
+    // await setVaultAddress("zngn", vault.address, liqAddr);
+    // await setVaultAddress("zzar", vault.address, liqAddr);
+    // await setVaultAddress("zxaf", vault.address, liqAddr);
 }
 
 main();

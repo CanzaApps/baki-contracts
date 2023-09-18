@@ -1,7 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="a5875339-dbdf-448b-b5ac-6acbc3df4e26" name="Changes" comment="" />
+    <list default="true" id="a5875339-dbdf-448b-b5ac-6acbc3df4e26" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/scripts/deploy_mainnet_v1.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/scripts/upgrade_vault_mainnet.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/contracts/CUSD.sol" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/contracts/Oracle.sol" beforeDir="false" afterPath="$PROJECT_DIR$/contracts/Oracle.sol" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/contracts/Vault.sol" beforeDir="false" afterPath="$PROJECT_DIR$/contracts/Vault.sol" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/contracts/interfaces/BakiOracleInterface.sol" beforeDir="false" afterPath="$PROJECT_DIR$/contracts/interfaces/BakiOracleInterface.sol" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/contracts/interfaces/IVault.sol" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/hardhat.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/hardhat.config.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/migrations/1_initial_migration.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migrations/2_deploy_contracts.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migrations/3_deploy_oracle.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/migrations/3_deploy_stable_tokens.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/deploy_vault_v1.js" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/deploy_vault_v1.js" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />

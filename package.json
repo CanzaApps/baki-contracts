@@ -2,7 +2,9 @@
   "name": "hardhat-project",
   "scripts": {
     "deploy": "hardhat run --network fuji scripts/deploy_vault_v1.js ",
-    "upgrade": "hardhat run --network fuji scripts/upgrade_vault.js "
+    "upgrade": "hardhat run --network fuji scripts/upgrade_vault.js ",
+    "deploy-mainnet": "hardhat run --network mainnet scripts/deploy_mainnet_v1.js",
+    "upgrade-mainnet": "hardhat run --network mainnet scripts/upgrade_vault_mainnet.js "
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.2.1",
@@ -12,7 +14,9 @@
     "ethers": "^5.7.2"
   },
   "dependencies": {
+    "@chainlink/contracts": "^0.6.1",
     "@openzeppelin/contracts": "^4.8.0",
-    "@openzeppelin/contracts-upgradeable": "^4.8.0"
+    "@openzeppelin/contracts-upgradeable": "^4.8.0",
+    "dotenv": "^16.3.1"
   }
 }
