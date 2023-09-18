@@ -18,10 +18,8 @@ import "./interfaces/ZTokenInterface.sol";
 import "./libraries/WadRayMath.sol";
 import "./interfaces/BakiOracleInterface.sol";
 
-error TransferFailed();
 error MintFailed();
 error BurnFailed();
-error ImpactFailed();
 
 contract Vault is
     ReentrancyGuardUpgradeable,
@@ -179,7 +177,7 @@ contract Vault is
     function depositAndMint(
         uint256 _depositAmount,
         uint256 _mintAmount
-    ) external payable nonReentrant {
+    ) external nonReentrant {
         blockBlacklistedAddresses(msg.sender);
         isTxPaused();
         
@@ -187,12 +185,6 @@ contract Vault is
             collateral.balanceOf(msg.sender) >=
                 _depositAmount,
             "Insufficient Balance"
-        );
-
-        collateral.safeTransferFrom(
-            msg.sender,
-            address(this),
-            _depositAmount
         );
 
         userCollateralBalance[msg.sender] += _depositAmount;
@@ -227,6 +219,12 @@ contract Vault is
         }
 
         _testImpact();
+
+         collateral.safeTransferFrom(
+            msg.sender,
+            address(this),
+            _depositAmount
+        );
 
         emit Deposit(msg.sender, _depositAmount, _mintAmount);
     }
@@ -361,12 +359,12 @@ contract Vault is
 
         userCollateralBalance[msg.sender] -= _amountToWithdraw;
 
+        _testImpact();
+
         collateral.safeTransfer(
             msg.sender,
             _amountToWithdraw
         );
-
-        _testImpact();
 
         emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
     }
@@ -376,12 +374,6 @@ contract Vault is
         isTxPaused();
 
         uint256 userDebt;
-
-        bool isUserInLiquidationZone = checkUserForLiquidation(_user);
-        require(
-            isUserInLiquidationZone == true,
-            "!LZ"
-        );
 
         uint totalRewards = getPotentialTotalReward(_user);
 
@@ -483,7 +475,9 @@ contract Vault is
     {
         require(hasRole(CONTROLLER, msg.sender), " Not controller");
 
-        for (uint256 i = 0; i < mintersAddresses.length; i++) {
+        uint len = mintersAddresses.length;
+
+        for (uint256 i; i < len; i++) {
             bool isUserInLiquidationZone = checkUserForLiquidation(
                 mintersAddresses[i]
             );
@@ -524,7 +518,9 @@ contract Vault is
     function _checkIfUserAlreadyExistsInLiquidationList(
         address _user
     ) internal view returns (bool) {
-        for (uint256 i = 0; i < usersInLiquidationZone.length; i++) {
+        uint len = usersInLiquidationZone.length;
+
+        for (uint256 i; i < len; i++) {
             if (usersInLiquidationZone[i] == _user) {
                 return true;
             }
@@ -547,12 +543,13 @@ contract Vault is
 
         uint256 index;
 
-        for (uint256 i = 0; i < usersInLiquidationZone.length; i++) {
+        uint len = usersInLiquidationZone.length;
+
+        for (uint256 i; i < len; i++) {
             if (usersInLiquidationZone[i] == _user) {
                 index = i;
             }
         }
-
         usersInLiquidationZone[index] = usersInLiquidationZone[
             usersInLiquidationZone.length - 1
         ];
@@ -631,7 +628,7 @@ contract Vault is
     ) external onlyOwner {
         // Set an upper and lower bound on the new value of collaterization ratio threshold
         require(
-            _value > 12 * 1e2 || _value < 20 * 1e2,
+            _value > 12 * 1e2 && _value < 20 * 1e2,
             "!SL"
         );
 
@@ -734,8 +731,21 @@ contract Vault is
     /**
      * view minters addresses
      */
-    function viewMintersAddress() external view returns (address[] memory) {
-        return mintersAddresses;
+    function viewMintersAddress(uint256 start, uint256 pageSize) external view   returns (address[] memory) {
+        require(start < mintersAddresses.length, "out of range");
+
+        uint256 end = start + pageSize;
+        if (end > mintersAddresses.length) {
+            end = mintersAddresses.length;
+        }
+
+        address[] memory result = new address[](end - start);
+
+        for (uint256 i = start; i < end; i++) {
+            result[i - start] = mintersAddresses[i];
+        }
+
+        return result;
     }
 
     /**
@@ -800,7 +810,7 @@ contract Vault is
              */
             zUSDMintAmount = _amount - swapFeePerTransaction;
 
-            zUSDMintAmount = zUSDMintAmount * 1 * HALF_MULTIPLIER;
+            zUSDMintAmount = zUSDMintAmount * HALF_MULTIPLIER;
 
             zUSDMintAmount = zUSDMintAmount / zTokenUSDRate;
 
