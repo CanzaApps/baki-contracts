@@ -11,7 +11,6 @@ contract BakiOracle is Ownable, AccessControl, BakiOracleInterface {
 
     mapping(string => address) private zTokenAddress;
     mapping(address => uint256) private zTokenUSDValue;
-    mapping(string => bool) private zTokenExists;
     
     string[] public zTokenList;
     uint256 public collateralUSD;
@@ -22,14 +21,10 @@ contract BakiOracle is Ownable, AccessControl, BakiOracleInterface {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         zTokenAddress["zusd"] = _zusd;
-        zTokenExists["zusd"] = true;
         zTokenAddress["zngn"] = _zngn;
-        zTokenExists["zngn"] = true;
         zTokenAddress["zzar"] = _zzar;
-        zTokenExists["zzar"] = true;
         zTokenAddress["zxaf"] = _zxaf;
-        zTokenExists["zxaf"] = true;
-
+       
         zTokenList = default_currencies;
     }
 
@@ -43,7 +38,6 @@ contract BakiOracle is Ownable, AccessControl, BakiOracleInterface {
         require(!checkIfTokenExists(_name), "zToken already exists");
 
         zTokenAddress[_name] = _address;
-        zTokenExists[_name] = true;
         zTokenList.push(_name);
 
         emit AddZToken(_name, _address);
@@ -61,23 +55,22 @@ contract BakiOracle is Ownable, AccessControl, BakiOracleInterface {
 
     function removeZToken(string calldata _name) external onlyOwner {
         require(zTokenAddress[_name] != address(0), "zToken does not exist");
-        require(zTokenExists[_name], "zToken does not exists");
 
         delete zTokenAddress[_name];
-        zTokenExists[_name] = false;
 
         uint256 index;
         bytes32 nameHash = keccak256(bytes(_name));
+        uint len = zTokenList.length;
 
-        for (uint256 i = 0; i < zTokenList.length; i++) {
+        for (uint256 i; i < len; i++) {
             if (keccak256(bytes(zTokenList[i])) == nameHash) {
                 index = i;
                 break;
             }
         }
 
-        if (index < zTokenList.length) {
-            zTokenList[index] = zTokenList[zTokenList.length - 1];
+        if (index < len) {
+            zTokenList[index] = zTokenList[len - 1];
             zTokenList.pop();
         }
 
@@ -85,11 +78,10 @@ contract BakiOracle is Ownable, AccessControl, BakiOracleInterface {
     }
 
     function checkIfTokenExists(string calldata _name) public view returns(bool){
-        require(!zTokenExists[_name], "zToken already exists");
-        
         bytes32 nameHash = keccak256(bytes(_name));
+        uint len = zTokenList.length;
 
-        for (uint256 i = 0; i < zTokenList.length; i++) {
+        for (uint256 i; i < len; i++) {
             if (keccak256(bytes(zTokenList[i])) == nameHash) {
                 return true;
             }
@@ -105,7 +97,6 @@ contract BakiOracle is Ownable, AccessControl, BakiOracleInterface {
         address zToken = getZToken(_name);
 
         require(hasRole(DATA_FEED, msg.sender), "Caller is not data_feed");
-        require(zToken != address(0), "zToken does not exist");
         require(_value >= 1, "Invalid value");
 
         zTokenUSDValue[zToken] = _value;
@@ -117,8 +108,6 @@ contract BakiOracle is Ownable, AccessControl, BakiOracleInterface {
         string calldata _name
     ) external view returns (uint256) {
         address zToken = getZToken(_name);
-
-        require(zToken != address(0), "zToken does not exist");
 
         return zTokenUSDValue[zToken];
     }
