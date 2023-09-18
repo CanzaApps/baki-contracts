@@ -124,6 +124,7 @@ contract Vault is
 
         __Ownable_init();
         __ReentrancyGuard_init();
+        __AccessControl_init();
     }
 
     /**
