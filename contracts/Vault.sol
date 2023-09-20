@@ -102,6 +102,9 @@ contract Vault is
     /**
      * Initializers
      */
+    constructor() {
+    _disableInitializers();
+    }
 
      function vault_init(
         address _controller,
@@ -196,8 +199,6 @@ contract Vault is
 
         uint256 netMintChange;
 
-        _mint(zUSD, msg.sender, _mintAmount);
-
         if(globalDebt == 0 || netMintGlobal == 0) {
             netMintChange = _mintAmount;
         } else {
@@ -220,6 +221,8 @@ contract Vault is
         }
 
         _testImpact();
+
+        _mint(zUSD, msg.sender, _mintAmount);
 
          collateral.safeTransferFrom(
             msg.sender,
@@ -281,10 +284,6 @@ contract Vault is
 
         totalSwapVolume += swapAmountInUSD;
 
-        _burn(_zTokenFromAddress, msg.sender, _amount);
-
-        _mint(_zTokenToAddress, msg.sender, mintAmount);
-
         /**
          * Handle swap fees and rewards
          */
@@ -303,6 +302,23 @@ contract Vault is
             swapFeePerTransactionInUsd;
 
         treasuryFeePerTransaction = treasuryFeePerTransaction / MULTIPLIER;
+
+        uint256 len = mintersAddresses.length;
+
+         for(uint256 i; i < len; i++) {
+            mintersRewardPerTransaction[mintersAddresses[i]] =
+                ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
+                    netMintGlobal) *
+                globalMintersFeePerTransaction;
+
+            userAccruedFeeBalance[mintersAddresses[i]] +=
+                mintersRewardPerTransaction[mintersAddresses[i]] /
+                MULTIPLIER;
+        }
+
+        _burn(_zTokenFromAddress, msg.sender, _amount);
+
+        _mint(_zTokenToAddress, msg.sender, mintAmount);
 
         /**
          * Send the treasury amount to a treasury wallet
@@ -356,11 +372,13 @@ contract Vault is
             netMintGlobal -= amountToSubtract;
         }
 
-        _burn(zUSD, msg.sender, amountToRepayinUSD);
-
         userCollateralBalance[msg.sender] -= _amountToWithdraw;
 
+        totalCollateral -= _amountToWithdraw;
+
         _testImpact();
+
+        _burn(zUSD, msg.sender, amountToRepayinUSD);
 
         collateral.safeTransfer(
             msg.sender,
@@ -376,7 +394,7 @@ contract Vault is
 
         uint256 userDebt;
 
-        uint totalRewards = getPotentialTotalReward(_user);
+        uint256 totalRewards = getPotentialTotalReward(_user);
 
         userDebt = _updateUserDebtOutstanding(
             netMintUser[_user],
@@ -396,6 +414,8 @@ contract Vault is
         if (userCollateralBalance[_user] <= totalRewards) {
             userCollateralBalance[_user] = 0;
 
+            totalCollateral -= totalRewards;
+
             collateral.safeTransfer(
                 msg.sender,
                 totalRewards
@@ -403,6 +423,8 @@ contract Vault is
 
         } else {
             userCollateralBalance[_user] -= totalRewards;
+
+            totalCollateral -= totalRewards;
 
             collateral.safeTransfer(
                 msg.sender,
@@ -417,15 +439,12 @@ contract Vault is
      * Allow minters to claim rewards/fees on swap
      */
     function claimFees() external nonReentrant {
-        uint256 amount = getSwapReward(msg.sender);
+        require(userAccruedFeeBalance[msg.sender] > 0,
+            "User has no accumulated rewards");
+        uint256 amount;
 
-        require(
-            amount > 0,
-            "No reward"
-        );
-        
-        userAccruedFeeBalance[msg.sender] += amount;
-        GlobalMintersFeeAtClaim[msg.sender] = globalMintersFee;
+        amount = userAccruedFeeBalance[msg.sender];
+        userAccruedFeeBalance[msg.sender] = 0;
 
         bool transferSuccess = IERC20Upgradeable(zUSD).transfer(msg.sender, amount);
         if (!transferSuccess) revert();
@@ -890,32 +909,6 @@ contract Vault is
     */
     function getzUSDAddress() external onlyOwner returns(address) {
         return zUSD = BakiOracleInterface(Oracle).getZToken("zusd");
-    }
-
-     /**
-    * View minter's reward Helper
-    */
-    function getSwapReward(address _user) public view returns(uint256) {
-
-        if (netMintUser[msg.sender] == 0) {
-            return 0;
-        }
-        uint256 amount;
-        uint256 y = globalMintersFee - GlobalMintersFeeAtClaim[_user];
-
-        if (y == 0) {
-            return 0;
-        }
-        uint256 x = netMintUser[msg.sender] * y;
-
-        uint256 mintRatio = WadRayMath.wadDiv(
-            x,
-            netMintGlobal
-        );
-
-        amount = mintRatio / MULTIPLIER;
-
-        return amount;
     }
 
     /**
