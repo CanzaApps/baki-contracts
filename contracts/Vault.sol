@@ -199,6 +199,8 @@ contract Vault is
 
         uint256 netMintChange;
 
+        _mint(zUSD, msg.sender, _mintAmount);
+
         if(globalDebt == 0 || netMintGlobal == 0) {
             netMintChange = _mintAmount;
         } else {
@@ -210,8 +212,8 @@ contract Vault is
         grossMintUser[msg.sender] += _mintAmount;
 
         netMintUser[msg.sender] += netMintChange;
-        netMintGlobal += netMintChange;
-        
+        netMintGlobal += netMintChange;  
+
         /**
          * if this is user's first mint, add to minters list
          */
@@ -221,8 +223,6 @@ contract Vault is
         }
 
         _testImpact();
-
-        _mint(zUSD, msg.sender, _mintAmount);
 
          collateral.safeTransferFrom(
             msg.sender,
@@ -284,6 +284,10 @@ contract Vault is
 
         totalSwapVolume += swapAmountInUSD;
 
+        _burn(_zTokenFromAddress, msg.sender, _amount);
+
+        _mint(_zTokenToAddress, msg.sender, mintAmount);
+
         /**
          * Handle swap fees and rewards
          */
@@ -303,7 +307,7 @@ contract Vault is
 
         treasuryFeePerTransaction = treasuryFeePerTransaction / MULTIPLIER;
 
-        uint256 len = mintersAddresses.length;
+         uint256 len = mintersAddresses.length;
 
          for(uint256 i; i < len; i++) {
             mintersRewardPerTransaction[mintersAddresses[i]] =
@@ -316,16 +320,12 @@ contract Vault is
                 MULTIPLIER;
         }
 
-        _burn(_zTokenFromAddress, msg.sender, _amount);
-
-        _mint(_zTokenToAddress, msg.sender, mintAmount);
-
         /**
          * Send the treasury amount to a treasury wallet
          */
          _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
 
-        /**
+         /**
          * Send the global minters fee from User to the global minters fee wallet
          */
         _mint(zUSD, address(this), globalMintersFeePerTransaction);
@@ -372,13 +372,13 @@ contract Vault is
             netMintGlobal -= amountToSubtract;
         }
 
+        _burn(zUSD, msg.sender, amountToRepayinUSD);
+
         userCollateralBalance[msg.sender] -= _amountToWithdraw;
 
         totalCollateral -= _amountToWithdraw;
 
         _testImpact();
-
-        _burn(zUSD, msg.sender, amountToRepayinUSD);
 
         collateral.safeTransfer(
             msg.sender,
@@ -435,7 +435,7 @@ contract Vault is
         emit Liquidate(_user, userDebt, totalRewards, msg.sender);
     }
 
-    /**
+     /**
      * Allow minters to claim rewards/fees on swap
      */
     function claimFees() external nonReentrant {
@@ -864,11 +864,25 @@ contract Vault is
 
             treasuryFeePerTransaction = treasuryFeePerTransaction / MULTIPLIER;
 
+             uint256 len = mintersAddresses.length;
+
+         for(uint256 i; i < len; i++) {
+            mintersRewardPerTransaction[mintersAddresses[i]] =
+                ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
+                    netMintGlobal) *
+                globalMintersFeePerTransaction;
+
+            userAccruedFeeBalance[mintersAddresses[i]] +=
+                mintersRewardPerTransaction[mintersAddresses[i]] /
+                MULTIPLIER;
+        }
+
             /**
              * Send the treasury amount to a treasury wallet
              */
             _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
-            /**
+            
+             /**
              * Send the global minters fee from User to the global minters fee wallet
              */
             _mint(zUSD, address(this), globalMintersFeePerTransaction);
@@ -940,7 +954,7 @@ contract Vault is
         return globalDebt;
     }
 
-    function getUserDebt(address user) external view returns (uint256) {
+    function getUserDebt(address user) public view returns (uint256) {
         return _updateUserDebtOutstanding(netMintUser[user], netMintGlobal);
     }
 
@@ -950,7 +964,7 @@ contract Vault is
  function _updateUserDebtOutstanding(
         uint256 _netMintUserzUSDValue,
         uint256 _netMintGlobalzUSDValue
-    ) public view returns (uint256) {
+    ) internal view returns (uint256) {
         if (_netMintGlobalzUSDValue != 0) {
             uint256 globalDebt = getGlobalDebt();
             uint256 userDebtOutstanding;
