@@ -97,7 +97,7 @@ contract Vault is
 
     bytes32 public constant CONTROLLER = keccak256("CONTROLLER");
 
-    mapping(address => uint256) public GlobalMintersFeeAtClaim;
+    mapping(address => uint256) public userCollateralRatio;
 
     /**
      * Initializers
@@ -222,6 +222,8 @@ contract Vault is
             isMinter[msg.sender] = true;
         }
 
+        userCollateralRatio[msg.sender] = getUserCollateralRatio(msg.sender);
+
         _testImpact();
 
          collateral.safeTransferFrom(
@@ -307,28 +309,10 @@ contract Vault is
 
         treasuryFeePerTransaction = treasuryFeePerTransaction / MULTIPLIER;
 
-         uint256 len = mintersAddresses.length;
-
-         for(uint256 i; i < len; i++) {
-            mintersRewardPerTransaction[mintersAddresses[i]] =
-                ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
-                    netMintGlobal) *
-                globalMintersFeePerTransaction;
-
-            userAccruedFeeBalance[mintersAddresses[i]] +=
-                mintersRewardPerTransaction[mintersAddresses[i]] /
-                MULTIPLIER;
-        }
-
         /**
          * Send the treasury amount to a treasury wallet
          */
          _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
-
-         /**
-         * Send the global minters fee from User to the global minters fee wallet
-         */
-        _mint(zUSD, address(this), globalMintersFeePerTransaction);
 
         emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
     }
@@ -377,6 +361,8 @@ contract Vault is
         userCollateralBalance[msg.sender] -= _amountToWithdraw;
 
         totalCollateral -= _amountToWithdraw;
+
+        userCollateralRatio[msg.sender] = getUserCollateralRatio(msg.sender);
 
         _testImpact();
 
@@ -433,21 +419,6 @@ contract Vault is
         }
 
         emit Liquidate(_user, userDebt, totalRewards, msg.sender);
-    }
-
-     /**
-     * Allow minters to claim rewards/fees on swap
-     */
-    function claimFees() external nonReentrant {
-        require(userAccruedFeeBalance[msg.sender] > 0,
-            "User has no accumulated rewards");
-        uint256 amount;
-
-        amount = userAccruedFeeBalance[msg.sender];
-        userAccruedFeeBalance[msg.sender] = 0;
-
-        bool transferSuccess = IERC20Upgradeable(zUSD).transfer(msg.sender, amount);
-        if (!transferSuccess) revert();
     }
 
     /**
@@ -583,29 +554,11 @@ contract Vault is
     function checkUserForLiquidation(address _user) public view returns (bool) {
         require(_user != address(0), "ZA");
 
-        uint256 userDebt;
-        uint256 userCollateralRatio;
+         uint256 userColRatio = getUserCollateralRatio(_user);
 
-        uint256 USDValueOfCollateral = getUSDValueOfCollateral(
-            userCollateralBalance[_user]
-        );
-
-        userDebt = _updateUserDebtOutstanding(
-            netMintUser[_user],
-            netMintGlobal
-        );
-
-        if (userDebt != 0) {
-            userCollateralRatio =
-                1e3 *
-                WadRayMath.wadDiv(USDValueOfCollateral, userDebt);
-
-            userCollateralRatio = userCollateralRatio / MULTIPLIER;
-
-            if (userCollateralRatio < COLLATERIZATION_RATIO_THRESHOLD) {
+            if (userColRatio < COLLATERIZATION_RATIO_THRESHOLD) {
                 return true;
             }
-        }
 
         return false;
     }
@@ -864,28 +817,10 @@ contract Vault is
 
             treasuryFeePerTransaction = treasuryFeePerTransaction / MULTIPLIER;
 
-             uint256 len = mintersAddresses.length;
-
-         for(uint256 i; i < len; i++) {
-            mintersRewardPerTransaction[mintersAddresses[i]] =
-                ((netMintUser[mintersAddresses[i]] * MULTIPLIER) /
-                    netMintGlobal) *
-                globalMintersFeePerTransaction;
-
-            userAccruedFeeBalance[mintersAddresses[i]] +=
-                mintersRewardPerTransaction[mintersAddresses[i]] /
-                MULTIPLIER;
-        }
-
             /**
              * Send the treasury amount to a treasury wallet
              */
             _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
-            
-             /**
-             * Send the global minters fee from User to the global minters fee wallet
-             */
-            _mint(zUSD, address(this), globalMintersFeePerTransaction);
         }
 
         return zUSDMintAmount;
@@ -956,6 +891,36 @@ contract Vault is
 
     function getUserDebt(address user) public view returns (uint256) {
         return _updateUserDebtOutstanding(netMintUser[user], netMintGlobal);
+    }
+
+    /**
+     * Get collateral ratio i.e ratio of user collateral balance to debt
+     * This function calculates the latest/realtime value of collateral ratio
+     */
+     function getUserCollateralRatio(address user) public view returns (uint256) {
+        uint256 USDValueOfCollateral;
+        uint256 userDebt = getUserDebt(user);
+
+        USDValueOfCollateral = getUSDValueOfCollateral(
+            userCollateralBalance[user]
+        );
+
+        if( userDebt != 0) {
+            uint256 x = WadRayMath.wadDiv(USDValueOfCollateral, userDebt);
+
+            x = x / HALF_MULTIPLIER;
+
+            return x;
+        }
+
+        return USDValueOfCollateral;
+    }
+
+    /**
+     * This returns the collateral ratio of a user at the last user deposit or withdraw
+     */
+    function returnLastCollateralRatio(address user) public view returns (uint256) {
+        return userCollateralRatio[user];
     }
 
     /**
