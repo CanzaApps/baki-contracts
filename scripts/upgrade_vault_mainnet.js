@@ -1,7 +1,7 @@
 const { ethers, upgrades } = require("hardhat");
 
-// Current Impl Address of the Vault 
-const currentVaultAddress = process.env.MAINNET_IMPL_ADDRESS;
+// Address of the Vault 
+const currentVaultAddress = process.env.MAINNET_VAULT;
 
 async function main() {
   const upgradedVault = await ethers.getContractFactory("Vault");

@@ -97,11 +97,11 @@ contract Vault is
 
     bytes32 public constant CONTROLLER = keccak256("CONTROLLER");
 
-    mapping(address => uint256) public userCollateralRatio;
+    mapping(address => uint256) public GlobalMintersFeeAtClaim;
 
-    /**
-     * Initializers
-     */
+    mapping(address => uint256) public lastUserCollateralRatio;
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
     _disableInitializers();
     }
@@ -222,7 +222,7 @@ contract Vault is
             isMinter[msg.sender] = true;
         }
 
-        userCollateralRatio[msg.sender] = getUserCollateralRatio(msg.sender);
+        lastUserCollateralRatio[msg.sender] = getUserCollateralRatio(msg.sender);
 
         _testImpact();
 
@@ -362,7 +362,7 @@ contract Vault is
 
         totalCollateral -= _amountToWithdraw;
 
-        userCollateralRatio[msg.sender] = getUserCollateralRatio(msg.sender);
+        lastUserCollateralRatio[msg.sender] = getUserCollateralRatio(msg.sender);
 
         _testImpact();
 
@@ -920,7 +920,7 @@ contract Vault is
      * This returns the collateral ratio of a user at the last user deposit or withdraw
      */
     function returnLastCollateralRatio(address user) public view returns (uint256) {
-        return userCollateralRatio[user];
+        return lastUserCollateralRatio[user];
     }
 
     /**
@@ -992,5 +992,5 @@ contract Vault is
         return true;
     }
 
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 }
