@@ -2,16 +2,31 @@
 pragma solidity ^0.8.18;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./interfaces/BakiOracleInterface.sol";
 
-contract BakiOracle is Ownable, BakiOracleInterface {
+contract BakiOracle is Ownable, AccessControl, BakiOracleInterface {
+
+    bytes32 public constant DATA_FEED = keccak256("DATA_FEED");
 
     mapping(string => address) private zTokenAddress;
     mapping(address => uint256) private zTokenUSDValue;
-    mapping(string => bool) private zTokenExists;
     
     string[] public zTokenList;
     uint256 public collateralUSD;
+
+    constructor (address _datafeed, address _zusd, address _zngn, address _zzar, address _zxaf) {
+        string[4] memory default_currencies = ["zusd", "zngn", "zzar", "zxaf"];
+        _setupRole(DATA_FEED, _datafeed);
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+
+        zTokenAddress["zusd"] = _zusd;
+        zTokenAddress["zngn"] = _zngn;
+        zTokenAddress["zzar"] = _zzar;
+        zTokenAddress["zxaf"] = _zxaf;
+       
+        zTokenList = default_currencies;
+    }
 
     event AddZToken(string indexed _name, address _address);
     event RemoveZToken(string indexed _name);
@@ -23,7 +38,6 @@ contract BakiOracle is Ownable, BakiOracleInterface {
         require(!checkIfTokenExists(_name), "zToken already exists");
 
         zTokenAddress[_name] = _address;
-        zTokenExists[_name] = true;
         zTokenList.push(_name);
 
         emit AddZToken(_name, _address);
@@ -41,23 +55,22 @@ contract BakiOracle is Ownable, BakiOracleInterface {
 
     function removeZToken(string calldata _name) external onlyOwner {
         require(zTokenAddress[_name] != address(0), "zToken does not exist");
-        require(zTokenExists[_name], "zToken does not exists");
 
         delete zTokenAddress[_name];
-        zTokenExists[_name] = false;
 
         uint256 index;
         bytes32 nameHash = keccak256(bytes(_name));
+        uint len = zTokenList.length;
 
-        for (uint256 i = 0; i < zTokenList.length; i++) {
+        for (uint256 i; i < len; i++) {
             if (keccak256(bytes(zTokenList[i])) == nameHash) {
                 index = i;
                 break;
             }
         }
 
-        if (index < zTokenList.length) {
-            zTokenList[index] = zTokenList[zTokenList.length - 1];
+        if (index < len) {
+            zTokenList[index] = zTokenList[len - 1];
             zTokenList.pop();
         }
 
@@ -65,11 +78,10 @@ contract BakiOracle is Ownable, BakiOracleInterface {
     }
 
     function checkIfTokenExists(string calldata _name) public view returns(bool){
-        require(!zTokenExists[_name], "zToken already exists");
-        
         bytes32 nameHash = keccak256(bytes(_name));
+        uint len = zTokenList.length;
 
-        for (uint256 i = 0; i < zTokenList.length; i++) {
+        for (uint256 i; i < len; i++) {
             if (keccak256(bytes(zTokenList[i])) == nameHash) {
                 return true;
             }
@@ -81,10 +93,10 @@ contract BakiOracle is Ownable, BakiOracleInterface {
     function setZTokenUSDValue(
         string calldata _name,
         uint256 _value
-    ) external onlyOwner {
+    ) external {
         address zToken = getZToken(_name);
 
-        require(zToken != address(0), "zToken does not exist");
+        require(hasRole(DATA_FEED, msg.sender), "Caller is not data_feed");
         require(_value >= 1, "Invalid value");
 
         zTokenUSDValue[zToken] = _value;
@@ -97,12 +109,12 @@ contract BakiOracle is Ownable, BakiOracleInterface {
     ) external view returns (uint256) {
         address zToken = getZToken(_name);
 
-        require(zToken != address(0), "zToken does not exist");
-
         return zTokenUSDValue[zToken];
     }
 
-    function setZCollateralUSD(uint256 _value) external onlyOwner {
+    function setZCollateralUSD(uint256 _value) external {
+        require(hasRole(DATA_FEED, msg.sender), "Caller is not data_feed");
+
         if (_value > 1000) {
             collateralUSD = 1000;
         } else {

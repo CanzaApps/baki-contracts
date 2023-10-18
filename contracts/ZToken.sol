@@ -27,7 +27,6 @@ contract ZToken is Context, ZTokenInterface, IERC20, Ownable, IERC20Metadata {
     constructor(string memory name_, string memory symbol_) {
         _name = name_;
         _symbol = symbol_;
-        //_mint(msg.sender, 1000 * 10**18 );
     }
 
     event Mint(
