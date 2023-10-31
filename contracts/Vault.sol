@@ -101,6 +101,8 @@ contract Vault is
 
     mapping(address => uint256) public lastUserCollateralRatio;
 
+    uint256 private constant USDC_DIVISOR = 1e12;
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
     _disableInitializers();
@@ -118,7 +120,7 @@ contract Vault is
         zUSD = _zusd;
         COLLATERIZATION_RATIO_THRESHOLD = 15 * 1e2;
         LIQUIDATION_REWARD = 15;
-        treasuryWallet = 0x6F996Cb36a2CB5f0e73Fc07460f61cD083c63d4b;
+        treasuryWallet = 0x9e0FBB6c48E571744c09d695552Ad20d44C3fC50;
         swapFee = WadRayMath.wadDiv(8, 1000);
         globalMintersPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
         treasuryPercentOfSwapFee = WadRayMath.wadDiv(1, 2);
@@ -185,10 +187,12 @@ contract Vault is
         blockBlacklistedAddresses(msg.sender);
         isTxPaused();
         
+        uint256 depositAmountInUSDC = _depositAmount / USDC_DIVISOR;
+
         require(
             collateral.balanceOf(msg.sender) >=
-                _depositAmount,
-            "Insufficient Balance"
+                depositAmountInUSDC,
+                "Insufficient Balance"
         );
 
         userCollateralBalance[msg.sender] += _depositAmount;
@@ -230,10 +234,10 @@ contract Vault is
 
         _testImpact();
 
-         collateral.safeTransferFrom(
+        collateral.safeTransferFrom(
             msg.sender,
             address(this),
-            _depositAmount
+            depositAmountInUSDC
         );
 
         emit Deposit(msg.sender, _depositAmount, _mintAmount);
@@ -370,9 +374,11 @@ contract Vault is
 
         _testImpact();
 
+        uint256 amountToWithdrawInUSDC = _amountToWithdraw / USDC_DIVISOR;
+
         collateral.safeTransfer(
             msg.sender,
-            _amountToWithdraw
+            amountToWithdrawInUSDC
         );
 
         emit Withdraw(msg.sender, _zToken, _amountToWithdraw);
@@ -401,6 +407,8 @@ contract Vault is
 
         _burn(zUSD, msg.sender, userDebt);
 
+        uint256 totalRewardsInUSDC = totalRewards / USDC_DIVISOR;
+
         if (userCollateralBalance[_user] <= totalRewards) {
             userCollateralBalance[_user] = 0;
 
@@ -408,7 +416,7 @@ contract Vault is
 
             collateral.safeTransfer(
                 msg.sender,
-                totalRewards
+                totalRewardsInUSDC
             );
 
         } else {
@@ -418,7 +426,7 @@ contract Vault is
 
             collateral.safeTransfer(
                 msg.sender,
-                totalRewards
+                totalRewardsInUSDC
             );
         }
 
