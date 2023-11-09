@@ -2,6 +2,7 @@
 require("@nomiclabs/hardhat-ethers");
 require("@openzeppelin/hardhat-upgrades");
 require("@nomiclabs/hardhat-etherscan");
+require("@nomicfoundation/hardhat-verify");
 
 const dotenv = require('dotenv');
 dotenv.config();
@@ -36,9 +37,9 @@ module.exports = {
         process.env.MAINNET_PRIVATE_KEY,
       ],
       chainId: 43114
-    }
-    // etherscan: {
-    //   apiKey: process.env.ETHERSCAN_API_KEY,
-    // },
+    },
+    etherscan: {
+      apiKey: process.env.ETHERSCAN_API_KEY,
+    },
   },
 };
