@@ -41,6 +41,14 @@ async function deployOracle(_datafeed, _zusd, _zngn, _zzar ,_zxaf) {
   return oracle.address;
 }
 
+async function addZToken(_name, _address) {
+  const oracle = await hre.ethers.getContractAt("BakiOracle", Oracle);
+
+  const txn = await oracle.addZToken(_name, _address);
+
+  console.log(`adding ${_name} in ${txn.hash}`);
+}
+
 async function deployCollateral() {
   const Cusd = await ethers.getContractFactory("USDC");
   console.log(`deploying USDC`);
@@ -81,6 +89,9 @@ async function main() {
   const zNGN = await deployToken("zNGN", "zNGN");
   const zZAR = await deployToken("zZAR", "zZAR");
   const zXAF = await deployToken("zXAF", "zXAF");
+  const zGBP = await deployToken("zGBP", "zGBP");
+  const zEUR = await deployToken("zEUR", "zEUR");
+  const zYEN = await deployToken("zYEN", "zYEN");
 
   Oracle = await deployOracle(Datafeed, zUSD, zNGN, zZAR, zXAF);
 
@@ -107,6 +118,13 @@ async function main() {
   await setVaultAddress("zNGN", vault.address);
   await setVaultAddress("zZAR", vault.address);
   await setVaultAddress("zXAF", vault.address);
+  await setVaultAddress("zGBP", vault.address);
+  await setVaultAddress("zEUR", vault.address);
+  await setVaultAddress("zYEN", vault.address);
+
+  await addZToken("zgbp", zGBP);
+  await addZToken("zeur", zEUR);
+  await addZToken("zyen", zYEN);
 }
 
 main();

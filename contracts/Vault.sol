@@ -142,9 +142,8 @@ contract Vault is
         uint256 indexed _mintAmount
     );
     event Swap(
-        address indexed _account,
         string _zTokenFrom,
-        string _zTokenTo
+        uint256 _amount
     );
     event Withdraw(
         address indexed _account,
@@ -322,7 +321,7 @@ contract Vault is
          */
          _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
 
-        emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
+        emit Swap(_zTokenFrom, _amount);
     }
 
     /**
@@ -568,7 +567,7 @@ contract Vault is
 
          uint256 userColRatio = getUserCollateralRatio(_user);
 
-            if (userColRatio < COLLATERIZATION_RATIO_THRESHOLD) {
+            if (userColRatio < COLLATERIZATION_RATIO_THRESHOLD && userColRatio != 0) {
                 return true;
             }
 
@@ -714,9 +713,16 @@ contract Vault is
     }
 
     /**
+     * Get total number of minters
+     */
+    function getTotalMinters() external view returns (uint256) {
+        return mintersAddresses.length;
+    }
+
+    /**
      * view minters addresses
      */
-    function viewMintersAddress(uint256 start, uint256 pageSize) external view   returns (address[] memory) {
+    function viewMintersAddress(uint256 start, uint256 pageSize) external view returns (address[] memory) {
         uint len = mintersAddresses.length;
 
         require(start < len, "out of range");
