@@ -105,7 +105,7 @@ contract Vault is
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-    _disableInitializers();
+        _disableInitializers();
     }
 
      function vault_init(
@@ -321,7 +321,7 @@ contract Vault is
          */
          _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
 
-        emit Swap(_zTokenFrom, _amount);
+        emit Swap(_zTokenFrom, swapAmount);
     }
 
     /**
