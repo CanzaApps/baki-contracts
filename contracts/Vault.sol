@@ -17,6 +17,7 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./interfaces/ZTokenInterface.sol";
 import "./libraries/WadRayMath.sol";
 import "./interfaces/BakiOracleInterface.sol";
+import "./libraries/DynamicArray.sol";
 
 error MintFailed();
 error BurnFailed();
@@ -27,6 +28,8 @@ contract Vault is
     AccessControlUpgradeable
 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
+
+    using DynamicArray for LinkedList;
     
     IERC20Upgradeable public collateral;
 
@@ -105,7 +108,7 @@ contract Vault is
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-    _disableInitializers();
+        _disableInitializers();
     }
 
      function vault_init(
@@ -142,9 +145,8 @@ contract Vault is
         uint256 indexed _mintAmount
     );
     event Swap(
-        address indexed _account,
         string _zTokenFrom,
-        string _zTokenTo
+        uint256 _amount
     );
     event Withdraw(
         address indexed _account,
@@ -322,7 +324,7 @@ contract Vault is
          */
          _mint(zUSD, treasuryWallet, treasuryFeePerTransaction);
 
-        emit Swap(msg.sender, _zTokenFrom, _zTokenTo);
+        emit Swap(_zTokenFrom, swapAmount);
     }
 
     /**
@@ -388,6 +390,8 @@ contract Vault is
         blockBlacklistedAddresses(msg.sender);
         isTxPaused();
 
+        bool isUserInLiquidationZone = checkUserForLiquidation(_user);
+
         uint256 userDebt;
 
         uint256 totalRewards = getPotentialTotalReward(_user);
@@ -395,6 +399,11 @@ contract Vault is
         userDebt = _updateUserDebtOutstanding(
             netMintUser[_user],
             netMintGlobal
+        );
+
+        require(
+            isUserInLiquidationZone == true,
+            "Not in liquidation Zone"
         );
 
         require(
@@ -473,91 +482,29 @@ contract Vault is
      * Adds and removes users in Liquidation zone
      */
     function manageUsersInLiquidationZone()
-        external
-        returns (address[] memory)
+        external view
+        returns (bytes[] memory v)
     {
-        require(hasRole(CONTROLLER, msg.sender), " Not controller");
 
         uint len = mintersAddresses.length;
+        
+        LinkedList memory usersInLiquidationZoneSet = DynamicArray.empty();
 
         for (uint256 i; i < len; i++) {
-            bool isUserInLiquidationZone = checkUserForLiquidation(
-                mintersAddresses[i]
-            );
-            bool isUserAlreadyInLiquidationArray = _checkIfUserAlreadyExistsInLiquidationList(
-                    mintersAddresses[i]
-                );
+            bool isUserInLiquidationZone = checkUserForLiquidation(mintersAddresses[i]);
 
-            // If a user is in liquidation zone and not in the liquidation list, add user to the list
-            if (
-                isUserInLiquidationZone == true &&
-                isUserAlreadyInLiquidationArray == false
-            ) {
-                usersInLiquidationZone.push(mintersAddresses[i]);
-            }
-
-            // If the user is not/ no longer in the liquidation zone but still in the list, remove from the list
-            if (
-                isUserInLiquidationZone == false &&
-                isUserAlreadyInLiquidationArray == true
-            ) {
-                _removeUserFromLiquidationList(mintersAddresses[i]);
+            if (isUserInLiquidationZone) {
+                usersInLiquidationZoneSet.push(abi.encodePacked(mintersAddresses[i]));
             }
         }
-        return usersInLiquidationZone;
-    }
 
-    function getUserFromLiquidationZone()
-        external
-        view
-        returns (address[] memory)
-    {
-        return usersInLiquidationZone;
-    }
+         v = new bytes[](usersInLiquidationZoneSet.length);
 
-    /**
-     * Helper function to check that a user is already present in liquidation list
-     */
-    function _checkIfUserAlreadyExistsInLiquidationList(
-        address _user
-    ) internal view returns (bool) {
-        uint len = usersInLiquidationZone.length;
-
-        for (uint256 i; i < len; i++) {
-            if (usersInLiquidationZone[i] == _user) {
-                return true;
+            for (uint256 i = 0; i < usersInLiquidationZoneSet.length; i++) {
+            v[i] = DynamicArray.getNode(usersInLiquidationZoneSet, i).value;
             }
-        }
-        return false;
-    }
 
-    /**
-     * Helper function to remove a user from the liquidation list
-     */
-    function _removeUserFromLiquidationList(address _user) internal {
-        bool isUserAlreadyInLiquidationArray = _checkIfUserAlreadyExistsInLiquidationList(
-                _user
-            );
-
-        require(
-            isUserAlreadyInLiquidationArray == true,
-            "!LZ"
-        );
-
-        uint256 index;
-
-        uint len = usersInLiquidationZone.length;
-
-        for (uint256 i; i < len; i++) {
-            if (usersInLiquidationZone[i] == _user) {
-                index = i;
-            }
-        }
-        usersInLiquidationZone[index] = usersInLiquidationZone[
-            usersInLiquidationZone.length - 1
-        ];
-
-        usersInLiquidationZone.pop();
+        return v;
     }
 
     /**
@@ -568,7 +515,7 @@ contract Vault is
 
          uint256 userColRatio = getUserCollateralRatio(_user);
 
-            if (userColRatio < COLLATERIZATION_RATIO_THRESHOLD) {
+            if (userColRatio < COLLATERIZATION_RATIO_THRESHOLD && userColRatio != 0) {
                 return true;
             }
 
@@ -714,9 +661,16 @@ contract Vault is
     }
 
     /**
+     * Get total number of minters
+     */
+    function getTotalMinters() external view returns (uint256) {
+        return mintersAddresses.length;
+    }
+
+    /**
      * view minters addresses
      */
-    function viewMintersAddress(uint256 start, uint256 pageSize) external view   returns (address[] memory) {
+    function viewMintersAddress(uint256 start, uint256 pageSize) external view returns (address[] memory) {
         uint len = mintersAddresses.length;
 
         require(start < len, "out of range");
