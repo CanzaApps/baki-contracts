@@ -195,7 +195,6 @@ contract Vault is
                 "Insufficient Balance"
         );
 
-        
 
         userCollateralBalance[msg.sender] += _depositAmount;
 
