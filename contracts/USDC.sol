@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.18;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -41,33 +41,17 @@ contract USDC is Context, USDCInterface, IERC20, Ownable, IERC20Metadata {
         _mint(msg.sender, 1);
     }
 
-    //Global mint
-    mapping(address => uint256) private globalMint;
-
-    //User mint
-    mapping(address => mapping(address => uint256)) private userMint;
-
     //  OnlyVault modifier
     // modifier onlyVault {
     //   require(msg.sender == vault);
     //   _;
     // }
-
-    /**
-     * @dev these can only be called by the Vault contract
-     */
     function mint(address _userAddress, uint256 _amount)
         public
         override
         returns (bool)
     {
         _mint(_userAddress, _amount);
-
-        //increment global mint value
-        globalMint[address(this)] += _amount;
-
-        //increment user mint value
-        userMint[_userAddress][address(this)] += _amount;
 
         return true;
     }

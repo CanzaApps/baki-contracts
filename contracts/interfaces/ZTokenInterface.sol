@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.18;
 
 /**
- * @dev Interface of the zTokens to be used by Baki
+ * @dev Interface of the zTokens used by Baki
  */
 interface ZTokenInterface {
     /**
@@ -16,14 +16,4 @@ interface ZTokenInterface {
      * requires onlyVault modifier
      */
     function burn(address _address, uint256 _amount) external returns (bool);
-
-    /**
-     * @dev Amount of a particular zTokens minted by Vault contract for a user
-     */
-    function getUserMintValue(address _address) external returns (uint256);
-
-    /**
-     * @dev Global amount of a particular zTokens minted by Vault contract for all users
-     */
-    function getGlobalMint() external returns (uint256);
 }

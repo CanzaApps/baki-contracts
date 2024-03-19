@@ -1,6 +1,13 @@
 {
   "name": "hardhat-project",
+  "scripts": {
+    "deploy": "hardhat run --network fuji scripts/deploy_vault_v1.js ",
+    "upgrade": "hardhat run --network fuji scripts/upgrade_vault.js ",
+    "deploy-mainnet": "hardhat run --network mainnet scripts/deploy_mainnet_v1.js",
+    "upgrade-mainnet": "hardhat run --network mainnet scripts/upgrade_vault_mainnet.js "
+  },
   "devDependencies": {
+    "@nomicfoundation/hardhat-verify": "^2.0.0",
     "@nomiclabs/hardhat-ethers": "^2.2.1",
     "@nomiclabs/hardhat-waffle": "^2.0.3",
     "@openzeppelin/hardhat-upgrades": "^1.21.0",
@@ -9,6 +16,7 @@
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.8.0",
-    "@openzeppelin/contracts-upgradeable": "^4.8.0"
+    "@openzeppelin/contracts-upgradeable": "^4.8.0",
+    "dotenv": "^16.3.1"
   }
 }

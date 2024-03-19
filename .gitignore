@@ -4,3 +4,5 @@ package-lock.json
 artifacts/
 cache/
 .openzeppelin/
+.env
+.DS_Store
